@@ -284,6 +284,7 @@ fun UserPlatesSection(
     createUserPlateUseCase: CreateUserPlateUseCase,
     deleteUserPlateUseCase: DeleteUserPlateUseCase,
     setPrimaryPlateUseCase: SetPrimaryPlateUseCase,
+    updateUserPlateDepartureUseCase: UpdateUserPlateDepartureUseCase,
     recognizePlateUseCase: RecognizePlateUseCase?,
     platformActions: com.rimskiy.shared.platform.PlatformActions? = null,
     screenRefreshKey: Int = 0,
@@ -390,6 +391,17 @@ fun UserPlatesSection(
             plates.forEach { plate ->
                 PlateItem(
                     plate = plate,
+                    onUpdateDeparture = { newTime ->
+                        scope.launch {
+                            isLoading = true
+                            updateUserPlateDepartureUseCase(plate.id, if (newTime.isBlank()) null else newTime)
+                                .fold(
+                                    onSuccess = { load() },
+                                    onFailure = { e -> error = e.message ?: "Ошибка сохранения времени" }
+                                )
+                            isLoading = false
+                        }
+                    },
                     onSetPrimary = {
                         scope.launch {
                             isLoading = true
@@ -415,9 +427,13 @@ fun UserPlatesSection(
 @Composable
 private fun PlateItem(
     plate: UserPlateResponse,
+    onUpdateDeparture: (String) -> Unit,
     onSetPrimary: () -> Unit,
     onDelete: () -> Unit
 ) {
+    var departure by remember(plate.id) { mutableStateOf(plate.departure_time ?: "") }
+    var departureError by remember { mutableStateOf<String?>(null) }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -435,12 +451,53 @@ private fun PlateItem(
             Column(Modifier.weight(1f)) {
                 Text(plate.plate, style = MaterialTheme.typography.titleMedium)
                 Text(if (plate.is_primary) "Основной" else "Дополнительный", style = MaterialTheme.typography.bodySmall)
+                if (plate.departure_time != null) {
+                    Text("Время выезда: ${plate.departure_time}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                }
             }
             IconButton(onClick = onSetPrimary, enabled = !plate.is_primary) {
                 Icon(Icons.Default.Info, contentDescription = "Сделать основным")
             }
             IconButton(onClick = onDelete) {
                 Icon(Icons.Default.Delete, contentDescription = "Удалить")
+            }
+        }
+        Divider()
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = departure,
+                onValueChange = { value ->
+                    val digits = value.filter { it.isDigit() }.take(4)
+                    departure = when (digits.length) {
+                        0 -> ""
+                        1 -> "0$digits:"
+                        2 -> "$digits:"
+                        3 -> "${digits.take(2)}:${digits.takeLast(1)}"
+                        else -> "${digits.take(2)}:${digits.takeLast(2)}"
+                    }
+                    departureError = null
+                },
+                label = { Text("Время выезда (ЧЧ:ММ)") },
+                placeholder = { Text("18:30") },
+                singleLine = true,
+                isError = departureError != null
+            )
+            Button(
+                onClick = {
+                    if (departure.isNotEmpty() && !departure.matches(Regex("^\\d{2}:\\d{2}$"))) {
+                        departureError = "Формат ЧЧ:ММ"
+                    } else {
+                        onUpdateDeparture(departure)
+                    }
+                },
+                enabled = departureError == null
+            ) {
+                Text("Сохранить время")
             }
         }
     }

@@ -8,6 +8,7 @@ data class UserPlateResponse(
     val user_id: String,
     val plate: String,
     val is_primary: Boolean = false,
+    val departure_time: String? = null,
     val created_at: String? = null,
     val updated_at: String? = null
 )
@@ -15,6 +16,12 @@ data class UserPlateResponse(
 @Serializable
 data class CreateUserPlateRequest(
     val plate: String,
-    val is_primary: Boolean = false
+    val is_primary: Boolean = false,
+    val departure_time: String? = null
+)
+
+@Serializable
+data class UpdateUserPlateRequest(
+    val departure_time: String?
 )
 

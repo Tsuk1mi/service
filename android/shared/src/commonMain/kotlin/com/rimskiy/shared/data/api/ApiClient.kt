@@ -110,6 +110,17 @@ class ApiClient(
         }
     }
 
+    suspend fun getServerInfo(): com.rimskiy.shared.data.model.ServerInfoResponse {
+        val response = httpClient.get("$baseUrl/server-info") {
+            header("Cache-Control", "no-cache")
+            addDdnsAuthHeader()
+        }
+        if (!response.status.isSuccess()) {
+            throw Exception(ErrorHandler.getErrorMessage(response))
+        }
+        return response.body()
+    }
+
     // Helper method для добавления DDNS заголовка авторизации
     // Стратегия:
     // 1. Для публичных эндпоинтов (без Bearer токена) используем Authorization с Basic Auth для DDNS
@@ -523,6 +534,18 @@ class ApiClient(
             throw Exception(ErrorHandler.getErrorMessage(response))
         }
         return response.body()
+    }
+
+    suspend fun updateUserPlate(token: String, plateId: String, departureTime: String?): Unit {
+        val response = httpClient.patch("$baseUrl/api/user/plates/$plateId") {
+            contentType(ContentType.Application.Json)
+            header("Authorization", token)
+            setBody(com.rimskiy.shared.data.model.UpdateUserPlateRequest(departureTime))
+            addDdnsAuthHeader()
+        }
+        if (!response.status.isSuccess()) {
+            throw Exception(ErrorHandler.getErrorMessage(response))
+        }
     }
 
     suspend fun deleteUserPlate(token: String, plateId: String) {

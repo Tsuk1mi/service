@@ -36,7 +36,6 @@ import kotlinx.serialization.json.JsonPrimitive
 fun ProfileScreen(
     onNavigateToMyBlocks: () -> Unit,
     onNavigateToBlockedBy: () -> Unit,
-    onNavigateToCheckMyBlock: () -> Unit,
     onNavigateToBlockNotification: () -> Unit,
     onLogout: () -> Unit,
     getProfileUseCase: GetProfileUseCase,
@@ -45,6 +44,7 @@ fun ProfileScreen(
     createUserPlateUseCase: CreateUserPlateUseCase,
     deleteUserPlateUseCase: DeleteUserPlateUseCase,
     setPrimaryPlateUseCase: SetPrimaryPlateUseCase,
+    updateUserPlateDepartureUseCase: UpdateUserPlateDepartureUseCase,
     recognizePlateUseCase: RecognizePlateUseCase? = null,
     platformActions: com.rimskiy.shared.platform.PlatformActions? = null,
     screenRefreshKey: Int = 0
@@ -328,6 +328,7 @@ fun ProfileScreen(
                             createUserPlateUseCase = createUserPlateUseCase,
                             deleteUserPlateUseCase = deleteUserPlateUseCase,
                             setPrimaryPlateUseCase = setPrimaryPlateUseCase,
+                            updateUserPlateDepartureUseCase = updateUserPlateDepartureUseCase,
                             recognizePlateUseCase = recognizePlateUseCase,
                             platformActions = platformActions,
                             screenRefreshKey = screenRefreshKey,

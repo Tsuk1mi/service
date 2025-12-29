@@ -13,7 +13,8 @@ data class Block(
 @Serializable
 data class CreateBlockRequest(
     val blocked_plate: String,
-    val notify_owner: Boolean = false
+    val notify_owner: Boolean = false,
+    val departure_time: String? = null
 )
 
 @Serializable

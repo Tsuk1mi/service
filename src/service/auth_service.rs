@@ -4,7 +4,6 @@ use crate::auth::sms::SmsService;
 use crate::config::Config;
 use crate::error::{AppError, AppResult};
 use crate::models::auth::{AuthStartResponse, AuthVerifyResponse, RefreshTokenResponse};
-use crate::models::user::User;
 use crate::repository::{UserRepository, UserPlateRepository, CreateUserData};
 use crate::service::validation_service::ValidationService;
 use crate::utils::encryption::Encryption;
@@ -148,48 +147,15 @@ impl AuthService {
                 }
             },
             None => {
-                // Фолбек: ищем пользователей без phone_hash, расшифровываем и сравниваем телефоны
-                let mut recovered_user: Option<User> = None;
-                if let Ok(candidates) = user_repository.find_users_without_phone_hash().await {
-                    for candidate in candidates {
-                        if let Some(enc) = candidate.phone_encrypted.as_ref() {
-                            if let Ok(plain) = self.encryption.decrypt(enc) {
-                                if plain == normalized_phone {
-                                    let _ = user_repository.update(candidate.id, &crate::repository::UpdateUserData {
-                                        name: None,
-                                        phone_encrypted: None,
-                                        phone_hash: Some(phone_hash.clone()),
-                                        telegram: None,
-                                        plate: None,
-                                        show_contacts: None,
-                                        owner_type: None,
-                                        owner_info: None,
-                                        departure_time: None,
-                                        push_token: None,
-                                    }).await;
-                                    tracing::info!("Recovered user {} by phone decrypt fallback", candidate.id);
-                                    let recovered = user_repository.find_by_id(candidate.id).await?.unwrap_or(candidate);
-                                    recovered_user = Some(recovered);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if let Some(user) = recovered_user {
-                    user
-                } else {
-                    let new_user_id = Uuid::new_v4();
-                    let user = user_repository.create(&CreateUserData {
-                        id: new_user_id,
-                        phone_encrypted,
-                        phone_hash,
-                        plate: String::new(), // Будет сохранено как NULL в БД
-                    }).await?;
-                    tracing::info!("Created new user {} without plate - user should add it later", new_user_id);
-                    user
-                }
+                let new_user_id = Uuid::new_v4();
+                let user = user_repository.create(&CreateUserData {
+                    id: new_user_id,
+                    phone_encrypted,
+                    phone_hash,
+                    plate: String::new(), // Будет сохранено как NULL в БД
+                }).await?;
+                tracing::info!("Created new user {} without plate - user should add it later", new_user_id);
+                user
             }
         };
 

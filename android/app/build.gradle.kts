@@ -9,6 +9,18 @@ android {
     namespace = "com.rimskiy.app"
     compileSdk = 34
 
+    signingConfigs {
+        create("release") {
+            val storePass = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            val keyPass = System.getenv("ANDROID_KEY_PASSWORD")
+            val alias = System.getenv("ANDROID_KEY_ALIAS")
+            storeFile = file("release-keystore.jks")
+            storePassword = storePass
+            keyAlias = alias
+            keyPassword = keyPass
+        }
+    }
+
     defaultConfig {
         applicationId = "com.rimskiy.app"
         minSdk = 24
@@ -29,12 +41,12 @@ android {
                 properties.load(stream)
             }
             Triple(
-                properties.getProperty("API_BASE_URL") ?: "http://10.0.2.2:3000",
+                properties.getProperty("API_BASE_URL") ?: "http://89.111.169.83:3000",
                 properties.getProperty("DDNS_USERNAME"),
                 properties.getProperty("DDNS_PASSWORD")
             )
         } else {
-            Triple("http://10.0.2.2:3000", null, null)
+            Triple("http://89.111.169.83:3000", null, null)
         }
         buildConfigField("String", "API_BASE_URL", "\"$apiUrl\"")
         buildConfigField("String", "DDNS_USERNAME", if (ddnsUsername != null) "\"$ddnsUsername\"" else "null")
@@ -48,6 +60,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {

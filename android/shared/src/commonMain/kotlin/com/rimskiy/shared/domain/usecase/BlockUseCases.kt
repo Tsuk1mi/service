@@ -8,8 +8,8 @@ import com.rimskiy.shared.domain.repository.IBlockRepository
 class CreateBlockUseCase(
     private val blockRepository: IBlockRepository
 ) {
-    suspend operator fun invoke(blockedPlate: String, notifyOwner: Boolean = false): Result<Block> {
-        return blockRepository.createBlock(blockedPlate, notifyOwner)
+    suspend operator fun invoke(blockedPlate: String, notifyOwner: Boolean = false, departureTime: String? = null): Result<Block> {
+        return blockRepository.createBlock(blockedPlate, notifyOwner, departureTime)
     }
 }
 

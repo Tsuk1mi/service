@@ -122,3 +122,30 @@ class SetPrimaryPlateUseCase(
     }
 }
 
+class UpdateUserPlateDepartureUseCase(
+    private val apiClient: ApiClient,
+    private val settingsManager: SettingsManager
+) {
+    suspend operator fun invoke(plateId: String, departureTime: String?): Result<Unit> {
+        return try {
+            val token = settingsManager.authToken ?: return Result.failure(Exception("Не авторизован"))
+            apiClient.updateUserPlate(token, plateId, departureTime)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+}
+
+class GetServerInfoUseCase(
+    private val apiClient: ApiClient
+) {
+    suspend operator fun invoke(): Result<com.rimskiy.shared.data.model.ServerInfoResponse> {
+        return try {
+            Result.success(apiClient.getServerInfo())
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+}
+

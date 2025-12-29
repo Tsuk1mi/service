@@ -51,7 +51,9 @@ fun MyBlocksScreen(
     var showDeleteDialog by remember { mutableStateOf<Block?>(null) }
     var plateError by remember { mutableStateOf<String?>(null) }
     var isRecognizing by remember { mutableStateOf(false) }
-    var departureTime by remember { mutableStateOf<String?>(null) }
+    var departureTime by remember { mutableStateOf("") }
+    var departureTimeError by remember { mutableStateOf<String?>(null) }
+    var departureTimeFromProfile by remember { mutableStateOf<String?>(null) }
     var showDepartureTimeDialog by remember { mutableStateOf<Pair<String, String>?>(null) } // (plate, departure_time) для диалога
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
@@ -61,7 +63,7 @@ fun MyBlocksScreen(
     LaunchedEffect(Unit) {
         getProfileUseCase().fold(
             onSuccess = { profile ->
-                departureTime = profile.departure_time
+                departureTimeFromProfile = profile.departure_time
             },
             onFailure = { }
         )
@@ -275,12 +277,38 @@ fun MyBlocksScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        OutlinedTextField(
+                            value = departureTime,
+                            onValueChange = { value ->
+                                val digits = value.filter { it.isDigit() }.take(4)
+                                val formatted = when (digits.length) {
+                                    0 -> ""
+                                    1 -> "0$digits:"
+                                    2 -> "$digits:"
+                                    3 -> "${digits.take(2)}:${digits.takeLast(1)}"
+                                    else -> "${digits.take(2)}:${digits.takeLast(2)}"
+                                }
+                                departureTime = formatted
+                                departureTimeError = null
+                            },
+                            label = { Text("Время разблокировки (ЧЧ:ММ)") },
+                            placeholder = { Text("18:30") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            isError = departureTimeError != null,
+                            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) }
+                        )
+
                         Button(
                             onClick = {
                                 hideKeyboard()
                                 val normalizedPlate = PlateUtils.normalizePlate(newPlate)
                                 if (!PlateUtils.validatePlate(normalizedPlate)) {
                                     plateError = "Неверный формат номера"
+                                    return@Button
+                                }
+                                if (departureTime.isNotEmpty() && !departureTime.matches(Regex("^\\d{2}:\\d{2}$"))) {
+                                    departureTimeError = "Используйте формат ЧЧ:ММ"
                                     return@Button
                                 }
                                 
@@ -290,9 +318,10 @@ fun MyBlocksScreen(
                                 
                                 // Создаем блокировку и проверяем время выезда владельца
                                 scope.launch {
-                                    createBlockUseCase(newPlate, false).fold(
+                                    createBlockUseCase(newPlate, false, departureTime.ifBlank { null }).fold(
                                         onSuccess = {
                                             newPlate = ""
+                                            departureTime = ""
                                             error = null
                                             isLoading = false
                                             loadBlocks()
@@ -382,7 +411,7 @@ fun MyBlocksScreen(
                     }
                     
                     // Карточка с временем выезда (показывается только при вводе номера)
-                    if (newPlate.isNotBlank() && departureTime != null) {
+                    if (newPlate.isNotBlank() && departureTimeFromProfile != null) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(
@@ -409,7 +438,7 @@ fun MyBlocksScreen(
                                         color = MaterialTheme.colorScheme.onPrimaryContainer
                                     )
                                     Text(
-                                        text = departureTime ?: "",
+                                        text = departureTimeFromProfile ?: "",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onPrimaryContainer
                                     )

@@ -83,9 +83,6 @@ class AppModule(
         DeleteBlockUseCase(blockRepository)
     }
 
-    val checkBlockUseCase: CheckBlockUseCase by lazy {
-        CheckBlockUseCase(blockRepository)
-    }
 
     val warnOwnerUseCase: WarnOwnerUseCase by lazy {
         WarnOwnerUseCase(blockRepository)
@@ -121,6 +118,14 @@ class AppModule(
     
     val setPrimaryPlateUseCase: SetPrimaryPlateUseCase by lazy {
         SetPrimaryPlateUseCase(apiClient, settingsManager)
+    }
+
+    val updateUserPlateDepartureUseCase: UpdateUserPlateDepartureUseCase by lazy {
+        UpdateUserPlateDepartureUseCase(apiClient, settingsManager)
+    }
+
+    val getServerInfoUseCase: GetServerInfoUseCase by lazy {
+        GetServerInfoUseCase(apiClient)
     }
 }
 

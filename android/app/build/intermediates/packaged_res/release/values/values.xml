@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="add_block">Добавить номер</string>
+    <string name="app_name">Rimskiy</string>
+    <string name="auth_title">Авторизация</string>
+    <string name="block_plate_hint">Номер автомобиля</string>
+    <string name="blocked_by_title">Меня перекрыли</string>
+    <string name="call">Позвонить</string>
+    <string name="code_hint">Код подтверждения</string>
+    <string name="enter_code">Введите код из SMS</string>
+    <string name="error">Ошибка</string>
+    <string name="loading">Загрузка...</string>
+    <string name="logout">Выйти</string>
+    <string name="my_blocks_title">Перекрытые автомобили</string>
+    <string name="name_hint">Имя (необязательно)</string>
+    <string name="phone_hint">Номер телефона</string>
+    <string name="plate_hint">Номер автомобиля</string>
+    <string name="profile_title">Профиль</string>
+    <string name="retry">Повторить</string>
+    <string name="save">Сохранить</string>
+    <string name="send_code">Отправить код</string>
+    <string name="show_contacts">Показывать контакты другим</string>
+    <string name="sms">Отправить SMS</string>
+    <string name="telegram">Написать в Telegram</string>
+    <string name="telegram_hint">Telegram username</string>
+    <string name="verify_code">Подтвердить</string>
+    <style name="Theme.RimskiyApp" parent="android:Theme.Material.Light.NoActionBar"/>
+</resources>

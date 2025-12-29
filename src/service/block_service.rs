@@ -65,6 +65,22 @@ impl BlockService {
                 tracing::error!("Failed to create block: {:?}", e);
                 e
             })?;
+
+        // Если передано время выезда — привязываем к основному номеру блокирующего
+        if let Some(time_str) = request.departure_time.as_ref() {
+            if !time_str.is_empty() {
+                match chrono::NaiveTime::parse_from_str(time_str, "%H:%M") {
+                    Ok(dt) => {
+                        if let Ok(Some(primary_plate)) = user_plate_repository.find_primary_by_user_id(blocker_id).await {
+                            let _ = user_plate_repository.update_departure_time(primary_plate.id, blocker_id, Some(dt)).await;
+                        }
+                    }
+                    Err(_) => {
+                        tracing::warn!("Invalid departure_time format, expected HH:MM: {}", time_str);
+                    }
+                }
+            }
+        }
         
         tracing::info!("Block created successfully: {}", block.id);
         

@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (Rust)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Check fmt
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Tests
+        run: cargo test --all --all-features
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Upload backend binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-release
+          path: target/release/rimskiy_service
+
+  android:
+    name: Android (assembleRelease + deploy)
+    runs-on: ubuntu-latest
+    env:
+        APK_DEPLOY_HOST: ${{ secrets.APK_DEPLOY_HOST }}
+        APK_DEPLOY_USER: ${{ secrets.APK_DEPLOY_USER }}
+        APK_DEPLOY_KEY: ${{ secrets.APK_DEPLOY_KEY }}
+        APK_DEPLOY_PATH: ${{ secrets.APK_DEPLOY_PATH }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Gradle cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('android/**/gradle-wrapper.properties', 'android/**/build.gradle*', 'android/**/gradle.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Make Gradle executable
+        run: chmod +x android/gradlew
+
+      - name: Decode keystore
+        working-directory: android/app
+        run: echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > release-keystore.jks
+
+      - name: Build release APK
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease
+
+      - name: Upload release APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+
+      - name: Deploy APK to server (optional)
+        if: env.APK_DEPLOY_HOST != ''
+        env:
+          SSH_KEY: ${{ secrets.APK_DEPLOY_KEY }}
+          HOST: ${{ secrets.APK_DEPLOY_HOST }}
+          USER: ${{ secrets.APK_DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.APK_DEPLOY_PATH }}
+        run: |
+          if [ -z "$SSH_KEY" ]; then
+            echo "No APK_DEPLOY_KEY provided, skipping deploy"
+            exit 0
+          fi
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan $HOST >> ~/.ssh/known_hosts
+
+          DEST=${DEPLOY_PATH:-/var/www/html/apk}
+          ssh $USER@$HOST "mkdir -p $DEST"
+          scp android/app/build/outputs/apk/release/app-release.apk $USER@$HOST:$DEST/app-release.apk
+

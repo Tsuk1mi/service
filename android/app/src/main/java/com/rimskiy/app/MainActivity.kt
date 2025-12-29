@@ -119,7 +119,8 @@ class MainActivity : ComponentActivity() {
             RimskiyApp(
                 baseUrl = apiUrl,
                 ddnsUsername = ddnsUsername,
-                ddnsPassword = ddnsPassword
+                ddnsPassword = ddnsPassword,
+                appVersion = BuildConfig.VERSION_NAME
             )
         }
     }

@@ -1,0 +1,27 @@
+R_DEF: Internal format may change without notice
+local
+string add_block
+string app_name
+string auth_title
+string block_plate_hint
+string blocked_by_title
+string call
+string code_hint
+string enter_code
+string error
+string loading
+string logout
+string my_blocks_title
+string name_hint
+string phone_hint
+string plate_hint
+string profile_title
+string retry
+string save
+string send_code
+string show_contacts
+string sms
+string telegram
+string telegram_hint
+string verify_code
+style Theme.RimskiyApp

@@ -203,7 +203,7 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
     .await?;
     sqlx::query(
         r#"
-        CREATE INDEX IF NOT EXISTS idx_users_phone_hash ON users(phone_hash) WHERE phone_hash IS NOT NULL
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_hash_unique ON users(phone_hash) WHERE phone_hash IS NOT NULL
         "#
     )
     .execute(pool)
@@ -276,7 +276,7 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
     )
     .execute(pool)
     .await?;
-
+    
     // Создаём индексы для user_plates
     sqlx::query(
         r#"
@@ -302,7 +302,7 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
     )
     .execute(pool)
     .await?;
-
+    
     sqlx::query(
         r#"
         CREATE INDEX IF NOT EXISTS idx_user_plates_plate ON user_plates(plate)

@@ -14,7 +14,7 @@ class BlockRepository(
     private val tokenManager: TokenManager
 ) : IBlockRepository {
     
-    override suspend fun createBlock(blockedPlate: String, notifyOwner: Boolean): Result<Block> {
+    override suspend fun createBlock(blockedPlate: String, notifyOwner: Boolean, departureTime: String?): Result<Block> {
         return try {
             val token = tokenManager.getValidToken()
                 ?: return Result.failure(Exception("Не авторизован"))
@@ -25,7 +25,7 @@ class BlockRepository(
                 return Result.failure(Exception("Неверный формат номера автомобиля"))
             }
             
-            val response = apiClient.createBlock(token, CreateBlockRequest(normalizedPlate, notifyOwner))
+            val response = apiClient.createBlock(token, CreateBlockRequest(normalizedPlate, notifyOwner, departureTime))
             Result.success(response)
         } catch (e: Exception) {
             Result.failure(Exception(com.rimskiy.shared.data.api.ErrorHandler.getErrorMessage(e)))

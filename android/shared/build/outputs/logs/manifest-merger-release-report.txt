@@ -1,0 +1,16 @@
+-- Merging decision tree log ---
+manifest
+ADDED from C:\Users\max22\RustroverProjects\service\android\shared\build\intermediates\tmp\ProcessLibraryManifest\release\tempAndroidManifest11353406444911676051.xml:2:13-83
+INJECTED from C:\Users\max22\RustroverProjects\service\android\shared\build\intermediates\tmp\ProcessLibraryManifest\release\tempAndroidManifest11353406444911676051.xml:2:13-83
+	package
+		INJECTED from C:\Users\max22\RustroverProjects\service\android\shared\build\intermediates\tmp\ProcessLibraryManifest\release\tempAndroidManifest11353406444911676051.xml
+	xmlns:android
+		ADDED from C:\Users\max22\RustroverProjects\service\android\shared\build\intermediates\tmp\ProcessLibraryManifest\release\tempAndroidManifest11353406444911676051.xml:2:23-81
+uses-sdk
+INJECTED from C:\Users\max22\RustroverProjects\service\android\shared\build\intermediates\tmp\ProcessLibraryManifest\release\tempAndroidManifest11353406444911676051.xml reason: use-sdk injection requested
+INJECTED from C:\Users\max22\RustroverProjects\service\android\shared\build\intermediates\tmp\ProcessLibraryManifest\release\tempAndroidManifest11353406444911676051.xml
+INJECTED from C:\Users\max22\RustroverProjects\service\android\shared\build\intermediates\tmp\ProcessLibraryManifest\release\tempAndroidManifest11353406444911676051.xml
+	android:targetSdkVersion
+		INJECTED from C:\Users\max22\RustroverProjects\service\android\shared\build\intermediates\tmp\ProcessLibraryManifest\release\tempAndroidManifest11353406444911676051.xml
+	android:minSdkVersion
+		INJECTED from C:\Users\max22\RustroverProjects\service\android\shared\build\intermediates\tmp\ProcessLibraryManifest\release\tempAndroidManifest11353406444911676051.xml

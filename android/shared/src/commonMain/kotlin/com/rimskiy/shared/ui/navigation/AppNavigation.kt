@@ -17,10 +17,10 @@ import kotlinx.coroutines.launch
 
 sealed class Screen {
     object Auth : Screen()
+    object Home : Screen()
     object Profile : Screen()
     object MyBlocks : Screen()
     object BlockedBy : Screen()
-    object CheckMyBlock : Screen()
     object BlockNotification : Screen()
     data class BlockNotificationDetails(val block: com.rimskiy.shared.data.model.BlockWithBlockerInfo) : Screen()
 }
@@ -31,10 +31,10 @@ enum class BottomNavItem(
     val icon: androidx.compose.ui.graphics.vector.ImageVector,
     val screen: Screen
 ) {
+    Home("Главное", "Главная", Icons.Default.Home, Screen.Home),
     Profile("Профиль", "Профиль", Icons.Default.Person, Screen.Profile),
     MyBlocks("Мои блокировки", "Блокировки", Icons.Default.List, Screen.MyBlocks),
     BlockedBy("Меня заблокировали", "Заблокировали", Icons.Default.Warning, Screen.BlockedBy),
-    CheckBlock("Проверка", "Проверка", Icons.Default.Search, Screen.CheckMyBlock),
     Notifications("Уведомления", "Уведомления", Icons.Default.Notifications, Screen.BlockNotification)
 }
 
@@ -42,6 +42,7 @@ enum class BottomNavItem(
 fun AppNavigation(
     currentBaseUrl: String,
     onChangeBaseUrl: (String) -> Unit,
+    appVersion: String,
     authRepository: IAuthRepository,
     startAuthUseCase: StartAuthUseCase,
     verifyAuthUseCase: VerifyAuthUseCase,
@@ -52,7 +53,6 @@ fun AppNavigation(
     deleteBlockUseCase: DeleteBlockUseCase,
     warnOwnerUseCase: WarnOwnerUseCase,
     getBlocksForMyPlateUseCase: GetBlocksForMyPlateUseCase,
-    checkBlockUseCase: CheckBlockUseCase,
     logoutUseCase: LogoutUseCase,
     recognizePlateUseCase: RecognizePlateUseCase,
     getNotificationsUseCase: GetNotificationsUseCase,
@@ -62,17 +62,37 @@ fun AppNavigation(
     createUserPlateUseCase: CreateUserPlateUseCase,
     deleteUserPlateUseCase: DeleteUserPlateUseCase,
     setPrimaryPlateUseCase: SetPrimaryPlateUseCase,
+    updateUserPlateDepartureUseCase: UpdateUserPlateDepartureUseCase,
+    getServerInfoUseCase: GetServerInfoUseCase,
     getUserByPlateUseCase: GetUserByPlateUseCase
 ) {
     // Состояние проверки авторизации
     var isCheckingAuth by remember { mutableStateOf(true) }
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Auth) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
+    var minRequiredVersion by remember { mutableStateOf<String?>(null) }
+    var downloadUrl by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     
     // Проверяем токен при первом запуске
     LaunchedEffect(Unit) {
         println("[AppNavigation] Checking authentication state...")
         isCheckingAuth = true
+
+        // Версионная проверка
+        getServerInfoUseCase().fold(
+            onSuccess = { info ->
+                val minVersion = info.min_client_version
+                if (minVersion != null && com.rimskiy.shared.utils.VersionUtils.compare(appVersion, minVersion) < 0) {
+                    minRequiredVersion = minVersion
+                    showUpdateDialog = true
+                }
+                downloadUrl = info.app_download_url
+            },
+            onFailure = { e ->
+                println("[AppNavigation] Failed to fetch server info: ${e.message}")
+            }
+        )
         
         // Если токен отсутствует, сразу показываем экран авторизации
         if (!authRepository.isAuthenticated()) {
@@ -86,8 +106,8 @@ fun AppNavigation(
         println("[AppNavigation] Token found, validating on server...")
         getProfileUseCase().fold(
             onSuccess = { profile ->
-                println("[AppNavigation] Token is valid, showing profile screen")
-                currentScreen = Screen.Profile
+                println("[AppNavigation] Token is valid, showing home screen")
+                currentScreen = Screen.Home
             },
             onFailure = { error ->
                 println("[AppNavigation] Token validation failed: ${error.message}, showing auth screen")
@@ -105,7 +125,7 @@ fun AppNavigation(
     val currentBottomNavItem = remember(currentScreen) {
         BottomNavItem.values().find { it.screen == currentScreen }
     }
-    var selectedBottomNavItem by remember { mutableStateOf(currentBottomNavItem ?: BottomNavItem.Profile) }
+    var selectedBottomNavItem by remember { mutableStateOf(currentBottomNavItem ?: BottomNavItem.Home) }
     
     // Ключ для принудительного обновления экранов при навигации
     var screenRefreshKey by remember { mutableStateOf(0) }
@@ -124,6 +144,38 @@ fun AppNavigation(
             CircularProgressIndicator()
         }
         return
+    }
+
+    if (showUpdateDialog) {
+        val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+        AlertDialog(
+            onDismissRequest = { /* блокируем закрытие */ },
+            title = { Text("Доступна новая версия") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Для работы требуется версия не ниже $minRequiredVersion.")
+                    downloadUrl?.let {
+                        Text(
+                            text = it,
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showUpdateDialog = false }) {
+                    Text("Понятно")
+                }
+            },
+            dismissButton = {
+                downloadUrl?.let { url ->
+                    TextButton(onClick = { uriHandler.openUri(url) }) {
+                        Text("Скачать")
+                    }
+                }
+            }
+        )
     }
     
     when (currentScreen) {
@@ -195,6 +247,28 @@ fun AppNavigation(
             ) { paddingValues ->
                 Box(modifier = Modifier.padding(paddingValues)) {
                     when (currentScreen) {
+                        is Screen.Home -> {
+                            key(Screen.Home, screenRefreshKey) {
+                                HomeScreen(
+                                    onNavigateToProfile = {
+                                        currentScreen = Screen.Profile
+                                        selectedBottomNavItem = BottomNavItem.Profile
+                                    },
+                                    onNavigateToMyBlocks = {
+                                        currentScreen = Screen.MyBlocks
+                                        selectedBottomNavItem = BottomNavItem.MyBlocks
+                                    },
+                                    onNavigateToBlockedBy = {
+                                        currentScreen = Screen.BlockedBy
+                                        selectedBottomNavItem = BottomNavItem.BlockedBy
+                                    },
+                                    onNavigateToNotifications = {
+                                        currentScreen = Screen.BlockNotification
+                                        selectedBottomNavItem = BottomNavItem.Notifications
+                                    }
+                                )
+                            }
+                        }
                         is Screen.Profile -> {
                             // Используем ключ для обновления при возврате на экран
                             key(Screen.Profile, screenRefreshKey) {
@@ -206,10 +280,6 @@ fun AppNavigation(
                                     onNavigateToBlockedBy = { 
                                         currentScreen = Screen.BlockedBy
                                         selectedBottomNavItem = BottomNavItem.BlockedBy
-                                    },
-                                    onNavigateToCheckMyBlock = { 
-                                        currentScreen = Screen.CheckMyBlock
-                                        selectedBottomNavItem = BottomNavItem.CheckBlock
                                     },
                                     onNavigateToBlockNotification = { 
                                         currentScreen = Screen.BlockNotification
@@ -227,6 +297,7 @@ fun AppNavigation(
                                     createUserPlateUseCase = createUserPlateUseCase,
                                     deleteUserPlateUseCase = deleteUserPlateUseCase,
                                     setPrimaryPlateUseCase = setPrimaryPlateUseCase,
+                                    updateUserPlateDepartureUseCase = updateUserPlateDepartureUseCase,
                                     recognizePlateUseCase = recognizePlateUseCase,
                                     platformActions = remember { getPlatformActions() },
                                     screenRefreshKey = screenRefreshKey
@@ -264,20 +335,6 @@ fun AppNavigation(
                                     },
                                     getBlocksForMyPlateUseCase = getBlocksForMyPlateUseCase,
                                     platformActions = platformActions
-                                )
-                            }
-                        }
-                        is Screen.CheckMyBlock -> {
-                            key(Screen.CheckMyBlock, screenRefreshKey) {
-                                CheckMyBlockScreen(
-                                    onNavigateBack = { 
-                                        currentScreen = Screen.Profile
-                                        selectedBottomNavItem = BottomNavItem.Profile
-                                    },
-                                    onNavigateToBlocker = { block ->
-                                        currentScreen = Screen.BlockNotificationDetails(block)
-                                    },
-                                    checkBlockUseCase = checkBlockUseCase
                                 )
                             }
                         }

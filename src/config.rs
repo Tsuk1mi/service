@@ -14,6 +14,8 @@ pub struct Config {
     pub sms_code_length: u32,
     pub return_sms_code_in_response: bool,
     pub fcm_server_key: Option<String>,
+    pub min_client_version: Option<String>,
+    pub app_download_url: Option<String>,
 }
 
 impl Config {
@@ -50,6 +52,8 @@ impl Config {
                 .parse()
             .unwrap_or(true);
         let fcm_server_key = env::var("FCM_SERVER_KEY").ok();
+        let min_client_version = env::var("MIN_CLIENT_VERSION").ok();
+        let app_download_url = env::var("APP_DOWNLOAD_URL").ok();
 
         Ok(Config {
             database_url,
@@ -63,6 +67,8 @@ impl Config {
             sms_code_length,
             return_sms_code_in_response,
             fcm_server_key,
+            min_client_version,
+            app_download_url,
         })
     }
 }

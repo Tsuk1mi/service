@@ -169,12 +169,12 @@ fun BlockedByScreen(
                             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                             shape = MaterialTheme.shapes.medium,
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.12f)
+                                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.1f)
                             )
                         ) {
                             Column(
                                 modifier = Modifier.padding(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -190,20 +190,14 @@ fun BlockedByScreen(
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = "Ваш авто перекрыт",
-                                            style = MaterialTheme.typography.titleMedium
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = MaterialTheme.colorScheme.onSurface
                                         )
                                         Text(
                                             text = "Номер: ${block.blocked_plate}",
                                             style = MaterialTheme.typography.bodyMedium,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
-                                        block.blocker.name?.let {
-                                            Text(
-                                                text = "Блокирующий: $it",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
                                     }
                                 }
 
@@ -218,6 +212,13 @@ fun BlockedByScreen(
                                         label = { Text(DateUtils.formatDateShort(block.created_at)) },
                                         leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) }
                                     )
+                                    block.blocker.name?.let { name ->
+                                        AssistChip(
+                                            onClick = {},
+                                            label = { Text(name) },
+                                            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) }
+                                        )
+                                    }
                                 }
 
                                 block.blocker.departure_time?.let { time ->

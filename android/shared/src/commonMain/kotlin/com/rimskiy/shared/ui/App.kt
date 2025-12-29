@@ -19,14 +19,21 @@ import com.rimskiy.shared.data.local.SettingsManager
 fun RimskiyApp(
     baseUrl: String? = null,
     ddnsUsername: String? = null,
-    ddnsPassword: String? = null
+    ddnsPassword: String? = null,
+    appVersion: String
 ) {
     val settingsManager = remember { SettingsManager(createSettings()) }
 
     // Автоопределение URL сервера
     val initialUrl = remember {
-        settingsManager.baseUrl ?: baseUrl ?: "http://10.0.2.2:3000"
+        // Если в настройках другой URL, но в сборке задан baseUrl — принудительно используем baseUrl
+        val stored = settingsManager.baseUrl
+        val effective = baseUrl ?: stored ?: "http://89.111.169.83:3000"
+        if (baseUrl != null && stored != baseUrl) {
+            settingsManager.baseUrl = baseUrl
         }
+        effective
+    }
 
     var serverUrl by remember { mutableStateOf(initialUrl) }
 
@@ -50,6 +57,7 @@ fun RimskiyApp(
                     serverUrl = normalized
                 }
             },
+            appVersion = appVersion,
             authRepository = appModule.authRepository,
             startAuthUseCase = appModule.startAuthUseCase,
             verifyAuthUseCase = appModule.verifyAuthUseCase,
@@ -60,7 +68,6 @@ fun RimskiyApp(
             deleteBlockUseCase = appModule.deleteBlockUseCase,
             warnOwnerUseCase = appModule.warnOwnerUseCase,
             getBlocksForMyPlateUseCase = appModule.getBlocksForMyPlateUseCase,
-            checkBlockUseCase = appModule.checkBlockUseCase,
             logoutUseCase = appModule.logoutUseCase,
             recognizePlateUseCase = appModule.recognizePlateUseCase,
             getNotificationsUseCase = appModule.getNotificationsUseCase,
@@ -70,6 +77,8 @@ fun RimskiyApp(
             createUserPlateUseCase = appModule.createUserPlateUseCase,
             deleteUserPlateUseCase = appModule.deleteUserPlateUseCase,
             setPrimaryPlateUseCase = appModule.setPrimaryPlateUseCase,
+            updateUserPlateDepartureUseCase = appModule.updateUserPlateDepartureUseCase,
+            getServerInfoUseCase = appModule.getServerInfoUseCase,
             getUserByPlateUseCase = appModule.getUserByPlateUseCase
         )
     }

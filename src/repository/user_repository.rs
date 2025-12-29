@@ -7,7 +7,6 @@ use crate::models::user::User;
 #[async_trait::async_trait]
 pub trait UserRepository: Send + Sync {
     async fn find_by_phone_hash(&self, phone_hash: &str) -> AppResult<Option<User>>;
-    async fn find_users_without_phone_hash(&self) -> AppResult<Vec<User>>;
     async fn find_by_id(&self, id: Uuid) -> AppResult<Option<User>>;
     async fn create(&self, user: &CreateUserData) -> AppResult<User>;
     async fn update(&self, id: Uuid, update_data: &UpdateUserData) -> AppResult<User>;
@@ -64,22 +63,6 @@ impl UserRepository for PostgresUserRepository {
         .await?;
 
         Ok(user)
-    }
-
-    async fn find_users_without_phone_hash(&self) -> AppResult<Vec<User>> {
-        let users = sqlx::query_as::<_, User>(
-            r#"
-            SELECT 
-                id, phone_encrypted, phone_hash, telegram, plate, name, show_contacts, 
-                owner_type, owner_info, departure_time, push_token, created_at, updated_at
-            FROM users
-            WHERE phone_hash IS NULL AND phone_encrypted IS NOT NULL
-            "#
-        )
-        .fetch_all(&*self.db)
-        .await?;
-
-        Ok(users)
     }
 
     async fn find_by_id(&self, id: Uuid) -> AppResult<Option<User>> {
