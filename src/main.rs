@@ -20,7 +20,6 @@ use rimskiy_service::service::{
 use rimskiy_service::utils::encryption::Encryption;
 use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
-use tracing_subscriber;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 

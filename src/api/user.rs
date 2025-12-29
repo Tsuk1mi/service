@@ -78,8 +78,8 @@ pub async fn update_profile(
         payload.name.as_ref().map(|s| if s.is_empty() { "<empty>" } else { s.as_str() }),
         payload.phone.as_ref().map(|_| "<present>"),
         payload.telegram.as_ref().map(|s| if s.is_empty() { "<empty>" } else { s.as_str() }),
-        payload.plate.as_ref().map(|s| s.as_str()),
-        payload.owner_type.as_ref().map(|s| s.as_str()),
+        payload.plate.as_deref(),
+        payload.owner_type.as_deref(),
         payload.owner_info.is_some()
     );
 

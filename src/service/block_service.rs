@@ -27,6 +27,7 @@ impl BlockService {
     }
 
     /// Создаёт новую блокировку
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_block<
         BR: BlockRepository,
         NR: NotificationRepository,

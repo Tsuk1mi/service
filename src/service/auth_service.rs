@@ -105,7 +105,7 @@ impl AuthService {
 
                 if let Some(primary) = primary_plate {
                     // Основной автомобиль найден - синхронизируем номер в users.plate
-                    if user.plate.as_ref().map(|p| p.as_str()) != Some(primary.plate.as_str()) {
+                    if user.plate.as_deref() != Some(primary.plate.as_str()) {
                         tracing::info!(
                             "Syncing user {} plate from primary: {:?} -> {}",
                             user.id,

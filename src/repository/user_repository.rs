@@ -78,14 +78,10 @@ impl UserRepository for PostgresUserRepository {
         .fetch_optional(&*self.db)
         .await?;
 
-        if user.is_none() {
-            tracing::warn!("User not found in database: {}", id);
+        if let Some(found) = user.as_ref() {
+            tracing::debug!("User found: {} (plate: {:?})", id, found.plate.as_ref());
         } else {
-            tracing::debug!(
-                "User found: {} (plate: {:?})",
-                id,
-                user.as_ref().unwrap().plate.as_ref()
-            );
+            tracing::warn!("User not found in database: {}", id);
         }
 
         Ok(user)
@@ -194,10 +190,7 @@ impl UserRepository for PostgresUserRepository {
         );
 
         // ВСЕГДА обновляем все поля, включая owner_info и departure_time
-        let departure_time = update_data
-            .departure_time
-            .clone()
-            .or_else(|| current_user.departure_time.clone());
+        let departure_time = update_data.departure_time.or(current_user.departure_time);
 
         // Используем RETURNING для избежания дополнительного SELECT
         let phone_hash = update_data

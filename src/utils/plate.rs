@@ -1,6 +1,6 @@
 /// Нормализует номер автомобиля (удаляет пробелы, приводит к верхнему регистру)
 pub fn normalize_plate(plate: &str) -> String {
-    plate.replace(' ', "").replace('-', "").to_uppercase()
+    plate.replace([' ', '-'], "").to_uppercase()
 }
 
 /// Проверяет формат российского номера автомобиля
@@ -11,7 +11,7 @@ pub fn validate_plate(plate: &str) -> bool {
 
     // Используем chars().count() вместо len() для правильного подсчета символов (не байт)
     let char_count = normalized.chars().count();
-    if char_count < 8 || char_count > 9 {
+    if !(8..=9).contains(&char_count) {
         tracing::warn!(
             "Plate length invalid: {} chars (expected 8-9) for '{}'",
             char_count,
@@ -37,7 +37,7 @@ pub fn validate_plate(plate: &str) -> bool {
         // Проверяем кириллические буквы (А-Я, Ё)
         let code = *c as u32;
         // А = 0x0410, Я = 0x042F, Ё = 0x0401
-        let is_cyrillic = (code >= 0x0410 && code <= 0x042F) || code == 0x0401;
+        let is_cyrillic = (0x0410..=0x042F).contains(&code) || code == 0x0401;
         let is_latin = c.is_ascii_alphabetic();
 
         if !is_cyrillic && !is_latin {

@@ -42,7 +42,7 @@ impl UserService {
             user_plate_repository.find_primary_by_user_id(user_id).await
         {
             // Синхронизируем номер пользователя из основного автомобиля
-            if user.plate.as_ref().map(|p| p.as_str()) != Some(primary_plate.plate.as_str()) {
+            if user.plate.as_deref() != Some(primary_plate.plate.as_str()) {
                 tracing::info!(
                     "Syncing user {} plate from user_plates: {:?} -> {}",
                     user_id,
@@ -126,14 +126,14 @@ impl UserService {
             request.name.as_ref().map(|s| if s.is_empty() { "<empty>" } else { s.as_str() }),
             request.phone.as_ref().map(|_| "<present>"),
             request.telegram.as_ref().map(|s| if s.is_empty() { "<empty>" } else { s.as_str() }),
-            request.plate.as_ref().map(|s| s.as_str()),
-            request.owner_type.as_ref().map(|s| s.as_str()),
+            request.plate.as_deref(),
+            request.owner_type.as_deref(),
             request.owner_info.is_some()
         );
 
         // Валидация полей вручную (проверяем только непустые значения)
         if let Some(ref name) = request.name {
-            if !name.is_empty() && (name.len() < 1 || name.len() > 20) {
+            if !name.is_empty() && name.len() > 20 {
                 return Err(AppError::Validation(
                     "Имя должно быть от 1 до 20 символов".to_string(),
                 ));
