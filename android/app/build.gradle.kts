@@ -9,6 +9,9 @@ android {
     namespace = "com.rimskiy.app"
     compileSdk = 34
 
+    val buildNumber = System.getenv("BUILD_NUMBER")?.toIntOrNull() ?: 1
+    val versionNameComputed = "1.0.$buildNumber"
+
     signingConfigs {
         create("release") {
             val storePass = System.getenv("ANDROID_KEYSTORE_PASSWORD")
@@ -25,8 +28,8 @@ android {
         applicationId = "com.rimskiy.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = buildNumber
+        versionName = versionNameComputed
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

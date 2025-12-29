@@ -57,6 +57,7 @@ jobs:
         APK_DEPLOY_USER: ${{ secrets.APK_DEPLOY_USER }}
         APK_DEPLOY_KEY: ${{ secrets.APK_DEPLOY_KEY }}
         APK_DEPLOY_PATH: ${{ secrets.APK_DEPLOY_PATH }}
+        BUILD_NUMBER: ${{ github.run_number }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
