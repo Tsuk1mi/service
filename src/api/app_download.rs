@@ -42,12 +42,10 @@ pub async fn download_app(State(state): State<AppState>) -> Result<impl IntoResp
     }
 
     // Читаем файл
-    let file_contents = fs::read(apk_path)
-        .await
-        .map_err(|e| {
-            tracing::error!("Ошибка при чтении APK файла: {:?}, ошибка: {}", apk_path, e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let file_contents = fs::read(apk_path).await.map_err(|e| {
+        tracing::error!("Ошибка при чтении APK файла: {:?}, ошибка: {}", apk_path, e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     // Получаем имя файла для заголовка Content-Disposition
     let filename = apk_path
@@ -70,4 +68,3 @@ pub async fn download_app(State(state): State<AppState>) -> Result<impl IntoResp
     tracing::info!("APK файл успешно отправлен: {}", filename);
     Ok((StatusCode::OK, headers, Bytes::from(file_contents)))
 }
-

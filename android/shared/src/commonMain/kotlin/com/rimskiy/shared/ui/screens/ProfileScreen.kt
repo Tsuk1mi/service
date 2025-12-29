@@ -28,6 +28,7 @@ import com.rimskiy.shared.domain.usecase.UpdateProfileUseCase
 import com.rimskiy.shared.domain.usecase.*
 import com.rimskiy.shared.utils.PhoneUtils
 import com.rimskiy.shared.utils.PlateUtils
+import com.rimskiy.shared.ui.components.TimePickerDialog
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonPrimitive
 
@@ -58,6 +59,7 @@ fun ProfileScreen(
     var plate by remember { mutableStateOf("") }
     var departureTime by remember { mutableStateOf("") }
     var departureTimeError by remember { mutableStateOf<String?>(null) }
+    var showTimePicker by remember { mutableStateOf(false) }
     var plateError by remember { mutableStateOf<String?>(null) }
     var phoneError by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -367,36 +369,42 @@ fun ProfileScreen(
                         
                         Divider()
 
-                        OutlinedTextField(
-                            value = departureTime,
-                            onValueChange = { newValue ->
-                                // Маска HH:MM, автодополнение нулей
-                                val digits = newValue.filter { it.isDigit() }.take(4)
-                                val formatted = when (digits.length) {
-                                    0 -> ""
-                                    1 -> "0$digits:"
-                                    2 -> "$digits:"
-                                    3 -> "${digits.take(2)}:${digits.takeLast(1)}"
-                                    else -> "${digits.take(2)}:${digits.takeLast(2)}"
-                                }
-                                departureTime = formatted
-                                departureTimeError = null
-                            },
-                            label = { Text("Время выезда") },
-                            placeholder = { Text("18:30") },
-                            leadingIcon = {
-                                Icon(Icons.Default.Info, contentDescription = null)
+                        OutlinedButton(
+                            onClick = {
+                                hideKeyboard()
+                                showTimePicker = true
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            isError = departureTimeError != null,
-                            supportingText = departureTimeError?.let { { Text(it) } },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Number,
-                                imeAction = ImeAction.Done
-                            ),
-                            keyboardActions = KeyboardActions(onDone = { hideKeyboard() })
-                        )
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = if (departureTime.isNotBlank()) 
+                                    MaterialTheme.colorScheme.primary 
+                                else 
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Schedule,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.Start
+                            ) {
+                                Text(
+                                    text = if (departureTime.isNotBlank()) departureTime else "Время выезда",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                                if (departureTime.isBlank()) {
+                                    Text(
+                                        text = "Нажмите для выбора времени",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
 
                         Text(
                             text = "Укажите время, когда вы планируете уехать. Это поможет людям, которые заблокировали ваш автомобиль.",
@@ -415,13 +423,6 @@ fun ProfileScreen(
                             val normalizedPhone = PhoneUtils.normalizePhone(phone)
                             if (!PhoneUtils.validatePhone(normalizedPhone)) {
                                 phoneError = "Неверный формат номера телефона"
-                                hasError = true
-                            }
-                        }
-                        if (departureTime.isNotBlank()) {
-                            val timeRegex = Regex("^([0-1][0-9]|2[0-3]):[0-5][0-9]$")
-                            if (!timeRegex.matches(departureTime)) {
-                                departureTimeError = "Неверный формат времени. Используйте формат HH:MM"
                                 hasError = true
                             }
                         }
@@ -502,5 +503,18 @@ fun ProfileScreen(
                 }
             }
         }
+    }
+    
+    // Диалог выбора времени
+    if (showTimePicker) {
+        TimePickerDialog(
+            initialTime = departureTime.ifBlank { null },
+            onTimeSelected = { time ->
+                departureTime = time ?: ""
+                departureTimeError = null
+            },
+            onDismiss = { showTimePicker = false },
+            title = "Время выезда"
+        )
     }
 }

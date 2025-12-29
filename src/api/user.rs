@@ -74,14 +74,6 @@ pub async fn update_profile(
     let user_id = auth_state.user_id;
 
     tracing::info!("API: update_profile called for user {}", user_id);
-    tracing::debug!("API: update_profile payload: name={:?}, phone={:?}, telegram={:?}, plate={:?}, owner_type={:?}, owner_info={:?}", 
-        payload.name.as_ref().map(|s| if s.is_empty() { "<empty>" } else { s.as_str() }),
-        payload.phone.as_ref().map(|_| "<present>"),
-        payload.telegram.as_ref().map(|s| if s.is_empty() { "<empty>" } else { s.as_str() }),
-        payload.plate.as_deref(),
-        payload.owner_type.as_deref(),
-        payload.owner_info.is_some()
-    );
 
     let response = state
         .user_service

@@ -15,30 +15,13 @@ pub async fn auth_middleware(
     mut request: Request,
     next: Next,
 ) -> Result<Response, AppError> {
-    // Логируем начало обработки middleware
     let path = request.uri().path();
-    tracing::debug!(
-        "[Middleware] Processing request: {} {}",
-        request.method(),
-        path
-    );
 
     // Извлекаем заголовок Authorization
     let auth_header = request
         .headers()
         .get("Authorization")
-        .and_then(|h| {
-            let header_str = h.to_str().ok()?;
-            tracing::debug!(
-                "[Middleware] Authorization header present: {}",
-                if header_str.len() > 20 {
-                    &header_str[..20]
-                } else {
-                    header_str
-                }
-            );
-            Some(header_str)
-        })
+        .and_then(|h| h.to_str().ok())
         .ok_or_else(|| {
             tracing::warn!("[Middleware] Missing Authorization header for {}", path);
             AppError::Auth("Missing Authorization header".to_string())
@@ -68,18 +51,11 @@ pub async fn auth_middleware(
         ));
     }
 
-    tracing::debug!("[Middleware] Token extracted (length: {})", token.len());
-
     // Верифицируем токен
     let claims = verify_token(token, &state.config).map_err(|e| {
         tracing::warn!("[Middleware] Token verification failed for {}: {}", path, e);
         e
     })?;
-
-    tracing::debug!(
-        "[Middleware] Token verified successfully for user {}",
-        claims.sub
-    );
 
     // Добавляем user_id в extensions для использования в handlers
     request.extensions_mut().insert(AuthState {
@@ -94,11 +70,6 @@ pub async fn auth_middleware(
         tracing::warn!(
             "[Middleware] Request completed with status {} for user {}",
             status,
-            claims.sub
-        );
-    } else {
-        tracing::debug!(
-            "[Middleware] Request completed successfully for user {}",
             claims.sub
         );
     }

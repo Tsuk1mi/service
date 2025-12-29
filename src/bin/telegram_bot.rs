@@ -7,7 +7,10 @@ use teloxide::prelude::*;
 use teloxide::utils::command::BotCommands;
 
 #[derive(BotCommands, Clone)]
-#[command(rename_rule = "lowercase", description = "Команды бота для авторизации")]
+#[command(
+    rename_rule = "lowercase",
+    description = "Команды бота для авторизации"
+)]
 enum Command {
     #[command(description = "Показать справку")]
     Help,
@@ -24,7 +27,7 @@ struct BotState {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv::dotenv().ok();
-    
+
     // Инициализируем логирование
     let default_filter = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
     tracing_subscriber::fmt()
@@ -36,33 +39,33 @@ async fn main() -> anyhow::Result<()> {
 
     // Загружаем конфигурацию
     let config = Arc::new(Config::from_env()?);
-    
+
     // Создаём SMS сервис
     let sms_service = Arc::new(SmsService::new((*config).clone()));
-    
+
     let bot_state = Arc::new(BotState {
         sms_service,
         config,
     });
 
-    let token = std::env::var("TELEGRAM_BOT_TOKEN")
-        .context("TELEGRAM_BOT_TOKEN is required")?;
+    let token = std::env::var("TELEGRAM_BOT_TOKEN").context("TELEGRAM_BOT_TOKEN is required")?;
     let bot = Bot::new(token);
 
     tracing::info!("Telegram бот запущен");
 
     let handler = move |bot: Bot, msg: Message, cmd: Command| {
         let state = bot_state.clone();
-        async move {
-            message_handler(bot, msg, cmd, (*state).clone()).await
-        }
+        async move { message_handler(bot, msg, cmd, (*state).clone()).await }
     };
 
-    Dispatcher::builder(bot, Update::filter_message().branch(dptree::endpoint(handler)))
-        .enable_ctrlc_handler()
-        .build()
-        .dispatch()
-        .await;
+    Dispatcher::builder(
+        bot,
+        Update::filter_message().branch(dptree::endpoint(handler)),
+    )
+    .enable_ctrlc_handler()
+    .build()
+    .dispatch()
+    .await;
 
     Ok(())
 }
@@ -88,7 +91,7 @@ async fn message_handler(
         Command::Code => {
             // Получаем текст сообщения
             let text = msg.text().unwrap_or("");
-            
+
             // Парсим команду: /code <телефон>
             let phone = if text.starts_with("/code") {
                 text.trim_start_matches("/code").trim()
@@ -134,13 +137,11 @@ async fn message_handler(
                         🔐 Ваш код: {}\n\n\
                         ⏰ Код действителен {} минут\n\n\
                         📱 Введите этот код в приложении для завершения авторизации.",
-                        normalized_phone,
-                        code,
-                        state.config.sms_code_expiration_minutes
+                        normalized_phone, code, state.config.sms_code_expiration_minutes
                     );
-                    
+
                     bot.send_message(msg.chat.id, message).await?;
-                    
+
                     tracing::info!(
                         "Код авторизации отправлен в Telegram для {} (чат: {})",
                         normalized_phone,
@@ -154,11 +155,7 @@ async fn message_handler(
                         e
                     );
                     bot.send_message(msg.chat.id, error_msg).await?;
-                    tracing::error!(
-                        "Ошибка при генерации кода для {}: {}",
-                        normalized_phone,
-                        e
-                    );
+                    tracing::error!("Ошибка при генерации кода для {}: {}", normalized_phone, e);
                 }
             }
         }

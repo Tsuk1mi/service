@@ -28,6 +28,7 @@ import com.rimskiy.shared.domain.usecase.RecognizePlateUseCase
 import com.rimskiy.shared.domain.usecase.WarnOwnerUseCase
 import com.rimskiy.shared.utils.DateUtils
 import com.rimskiy.shared.utils.PlateUtils
+import com.rimskiy.shared.ui.components.TimePickerDialog
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalMaterial3Api::class)
@@ -55,6 +56,7 @@ fun MyBlocksScreen(
     var departureTimeError by remember { mutableStateOf<String?>(null) }
     var departureTimeFromProfile by remember { mutableStateOf<String?>(null) }
     var showDepartureTimeDialog by remember { mutableStateOf<Pair<String, String>?>(null) } // (plate, departure_time) для диалога
+    var showTimePicker by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -277,42 +279,40 @@ fun MyBlocksScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        OutlinedTextField(
-                            value = departureTime,
-                            onValueChange = { value ->
-                                val digits = value.filter { it.isDigit() }.take(4)
-                                val formatted = when (digits.length) {
-                                    0 -> ""
-                                    1 -> "0$digits:"
-                                    2 -> "$digits:"
-                                    3 -> "${digits.take(2)}:${digits.takeLast(1)}"
-                                    else -> "${digits.take(2)}:${digits.takeLast(2)}"
-                                }
-                                departureTime = formatted
-                                departureTimeError = null
-                            },
-                            label = { Text("Время разблокировки (ЧЧ:ММ)") },
-                            placeholder = { Text("18:30") },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f),
-                            isError = departureTimeError != null,
-                            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) }
-                        )
-
-                        Button(
+                        OutlinedButton(
                             onClick = {
                                 hideKeyboard()
-                                val normalizedPlate = PlateUtils.normalizePlate(newPlate)
-                                if (!PlateUtils.validatePlate(normalizedPlate)) {
-                                    plateError = "Неверный формат номера"
-                                    return@Button
-                                }
-                                if (departureTime.isNotEmpty() && !departureTime.matches(Regex("^\\d{2}:\\d{2}$"))) {
-                                    departureTimeError = "Используйте формат ЧЧ:ММ"
-                                    return@Button
-                                }
-                                
-                                isLoading = true
+                                showTimePicker = true
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = if (departureTime.isNotBlank()) 
+                                    MaterialTheme.colorScheme.primary 
+                                else 
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Schedule,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = departureTime.ifBlank { "Время разблокировки" },
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+
+                        Button(
+                                onClick = {
+                                    hideKeyboard()
+                                    val normalizedPlate = PlateUtils.normalizePlate(newPlate)
+                                    if (!PlateUtils.validatePlate(normalizedPlate)) {
+                                        plateError = "Неверный формат номера"
+                                        return@Button
+                                    }
+                                    isLoading = true
                                 error = null
                                 plateError = null
                                 
@@ -503,10 +503,10 @@ fun MyBlocksScreen(
                     items(blocks) { block ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                             shape = MaterialTheme.shapes.medium,
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
+                                containerColor = MaterialTheme.colorScheme.surface
                             )
                         ) {
                             Column(
@@ -522,56 +522,90 @@ fun MyBlocksScreen(
                                         modifier = Modifier.weight(1f),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Info,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(24.dp)
-                                        )
+                                        Card(
+                                            colors = CardDefaults.cardColors(
+                                                containerColor = MaterialTheme.colorScheme.primaryContainer
+                                            ),
+                                            modifier = Modifier.size(48.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = block.blocked_plate.replace("+", "").take(1),
+                                                    style = MaterialTheme.typography.titleLarge,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                )
+                                            }
+                                        }
                                         Spacer(modifier = Modifier.width(12.dp))
-                                        Column {
+                                        Column(modifier = Modifier.weight(1f)) {
                                             Text(
                                                 text = block.blocked_plate.replace("+", ""),
-                                                style = MaterialTheme.typography.titleLarge
+                                                style = MaterialTheme.typography.titleLarge,
+                                                color = MaterialTheme.colorScheme.onSurface
                                             )
-                                            Text(
-                                                text = "Создано: ${DateUtils.formatDateShort(block.created_at)}",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Schedule,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(14.dp),
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                                Text(
+                                                    text = DateUtils.formatDateShort(block.created_at),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
                                         }
                                     }
                                     IconButton(
-                                        onClick = { showDeleteDialog = block }
+                                        onClick = { showDeleteDialog = block },
+                                        modifier = Modifier.size(40.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Delete,
                                             contentDescription = "Удалить",
-                                            tint = MaterialTheme.colorScheme.error
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(24.dp)
                                         )
                                     }
                                 }
                                 
                                 Divider()
 
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)
+                                    ),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Info,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Text(
-                                        text = "Если владелец указал время выезда, уведомление отправится автоматически.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Info,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Text(
+                                            text = "Если владелец указал время выезда, уведомление отправится автоматически.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                                        )
+                                    }
                                 }
                                 
-                                OutlinedButton(
+                                Button(
                                     onClick = {
                                         scope.launch {
                                             isLoading = true
@@ -587,11 +621,15 @@ fun MyBlocksScreen(
                                         }
                                     },
                                     enabled = !isLoading,
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary
+                                    )
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Phone,
-                                        contentDescription = null
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text("Предупредить владельца")
@@ -695,6 +733,19 @@ fun MyBlocksScreen(
                     Text("Понятно")
                 }
             }
+        )
+    }
+    
+    // Диалог выбора времени
+    if (showTimePicker) {
+        TimePickerDialog(
+            initialTime = departureTime.ifBlank { null },
+            onTimeSelected = { time ->
+                departureTime = time ?: ""
+                departureTimeError = null
+            },
+            onDismiss = { showTimePicker = false },
+            title = "Время разблокировки"
         )
     }
 }

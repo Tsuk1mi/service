@@ -66,7 +66,6 @@ impl UserRepository for PostgresUserRepository {
     }
 
     async fn find_by_id(&self, id: Uuid) -> AppResult<Option<User>> {
-        tracing::debug!("find_by_id called for user_id: {}", id);
         let user = sqlx::query_as::<_, User>(
             r#"
             SELECT id, phone_encrypted, phone_hash, telegram, plate, name, show_contacts, owner_type, owner_info, departure_time, push_token, created_at, updated_at
@@ -78,9 +77,7 @@ impl UserRepository for PostgresUserRepository {
         .fetch_optional(&*self.db)
         .await?;
 
-        if let Some(found) = user.as_ref() {
-            tracing::debug!("User found: {} (plate: {:?})", id, found.plate.as_ref());
-        } else {
+        if user.is_none() {
             tracing::warn!("User not found in database: {}", id);
         }
 

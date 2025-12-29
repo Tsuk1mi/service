@@ -44,9 +44,7 @@ impl BlockService {
         telephony_service: &TelephonyService,
     ) -> AppResult<Block> {
         // Нормализация и валидация
-        tracing::debug!("Original plate: {}", request.blocked_plate);
         request.normalize();
-        tracing::debug!("Normalized plate: {}", request.blocked_plate);
         let normalized_plate =
             ValidationService::validate_plate(&request.blocked_plate).map_err(|e| {
                 tracing::error!(
@@ -57,7 +55,6 @@ impl BlockService {
                 );
                 e
             })?;
-        tracing::debug!("Validated plate: {}", normalized_plate);
 
         // Определяем основной номер блокирующего (для совместных владельцев и запрета самоблокировки)
         let blocker_primary_plate = if let Ok(Some(primary_plate)) = user_plate_repository

@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,6 +26,7 @@ import com.rimskiy.shared.data.model.NotificationResponse
 import com.rimskiy.shared.data.model.UserPlateResponse
 import com.rimskiy.shared.domain.usecase.*
 import com.rimskiy.shared.utils.DateUtils
+import com.rimskiy.shared.ui.components.TimePickerDialog
 import kotlinx.coroutines.launch
 import androidx.compose.material3.ExperimentalMaterial3Api
 
@@ -433,6 +435,7 @@ private fun PlateItem(
 ) {
     var departure by remember(plate.id) { mutableStateOf(plate.departure_time ?: "") }
     var departureError by remember { mutableStateOf<String?>(null) }
+    var showTimePicker by remember { mutableStateOf(false) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -469,37 +472,52 @@ private fun PlateItem(
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            OutlinedTextField(
-                value = departure,
-                onValueChange = { value ->
-                    val digits = value.filter { it.isDigit() }.take(4)
-                    departure = when (digits.length) {
-                        0 -> ""
-                        1 -> "0$digits:"
-                        2 -> "$digits:"
-                        3 -> "${digits.take(2)}:${digits.takeLast(1)}"
-                        else -> "${digits.take(2)}:${digits.takeLast(2)}"
-                    }
-                    departureError = null
+            OutlinedButton(
+                onClick = {
+                    showTimePicker = true
                 },
-                label = { Text("Время выезда (ЧЧ:ММ)") },
-                placeholder = { Text("18:30") },
-                singleLine = true,
-                isError = departureError != null
-            )
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = if (departure.isNotBlank()) 
+                        MaterialTheme.colorScheme.primary 
+                    else 
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Schedule,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = departure.ifBlank { "Время выезда" },
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
             Button(
                 onClick = {
-                    if (departure.isNotEmpty() && !departure.matches(Regex("^\\d{2}:\\d{2}$"))) {
-                        departureError = "Формат ЧЧ:ММ"
-                    } else {
-                        onUpdateDeparture(departure)
-                    }
+                    onUpdateDeparture(departure)
                 },
-                enabled = departureError == null
+                enabled = departure.isNotBlank(),
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Сохранить время")
             }
         }
+    }
+    
+    // Диалог выбора времени
+    if (showTimePicker) {
+        TimePickerDialog(
+            initialTime = departure.ifBlank { null },
+            onTimeSelected = { time ->
+                departure = time ?: ""
+                departureError = null
+            },
+            onDismiss = { showTimePicker = false },
+            title = "Время выезда"
+        )
     }
 }
 
