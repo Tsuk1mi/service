@@ -137,6 +137,7 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
         CREATE TABLE IF NOT EXISTS blocks (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             blocker_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            blocker_plate TEXT NOT NULL,
             blocked_plate TEXT NOT NULL,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             -- Constraints для валидации
@@ -179,6 +180,32 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
     sqlx::query(
         r#"
         CREATE INDEX IF NOT EXISTS idx_blocks_plate_created ON blocks(blocked_plate, created_at DESC)
+        "#
+    )
+    .execute(pool)
+    .await?;
+
+    // Гарантируем наличие blocker_plate в blocks (для существующих БД)
+    sqlx::query(
+        r#"
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'blocks' AND column_name = 'blocker_plate'
+            ) THEN
+                ALTER TABLE blocks ADD COLUMN blocker_plate TEXT NOT NULL DEFAULT '';
+            END IF;
+        END $$;
+        "#,
+    )
+    .execute(pool)
+    .await?;
+
+    // Индекс для поиска блокировок по номеру блокирующего
+    sqlx::query(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_blocks_blocker_plate_norm ON blocks(UPPER(TRIM(blocker_plate)))
         "#
     )
     .execute(pool)

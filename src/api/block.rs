@@ -127,7 +127,11 @@ pub async fn get_my_blocks(
 
     let blocks = state
         .block_service
-        .get_my_blocks(blocker_id, &state.block_repository)
+        .get_my_blocks(
+            blocker_id,
+            &state.block_repository,
+            &state.user_plate_repository,
+        )
         .await?;
 
     Ok(Json(blocks))

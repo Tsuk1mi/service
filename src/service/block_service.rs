@@ -59,21 +59,29 @@ impl BlockService {
             })?;
         tracing::debug!("Validated plate: {}", normalized_plate);
 
-        // Запрещаем взаимные блокировки (нельзя перекрыть собственный авто)
-        if let Ok(Some(primary_plate)) = user_plate_repository
+        // Определяем основной номер блокирующего (для совместных владельцев и запрета самоблокировки)
+        let blocker_primary_plate = if let Ok(Some(primary_plate)) = user_plate_repository
             .find_primary_by_user_id(blocker_id)
             .await
         {
-            if primary_plate.plate.eq_ignore_ascii_case(&normalized_plate) {
-                tracing::warn!(
-                    "User {} attempted to block their own plate {}, blocking denied",
-                    blocker_id,
-                    normalized_plate
-                );
-                return Err(AppError::Validation(
-                    "Нельзя перекрыть свой же автомобиль".to_string(),
-                ));
-            }
+            primary_plate.plate
+        } else {
+            let plates = user_plate_repository.find_by_user_id(blocker_id).await?;
+            plates.first().map(|p| p.plate.clone()).ok_or_else(|| {
+                AppError::Validation("Сначала добавьте свой автомобиль".to_string())
+            })?
+        };
+
+        // Запрещаем взаимные блокировки (нельзя перекрыть собственный авто)
+        if blocker_primary_plate.eq_ignore_ascii_case(&normalized_plate) {
+            tracing::warn!(
+                "User {} attempted to block their own plate {}, blocking denied",
+                blocker_id,
+                normalized_plate
+            );
+            return Err(AppError::Validation(
+                "Нельзя перекрыть свой же автомобиль".to_string(),
+            ));
         }
 
         tracing::info!(
@@ -104,7 +112,7 @@ impl BlockService {
 
         // Создание блокировки
         let block = block_repository
-            .create(blocker_id, &normalized_plate)
+            .create(blocker_id, &blocker_primary_plate, &normalized_plate)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to create block: {:?}", e);
@@ -253,12 +261,27 @@ impl BlockService {
     }
 
     /// Получает блокировки пользователя
-    pub async fn get_my_blocks<BR: BlockRepository>(
+    pub async fn get_my_blocks<BR: BlockRepository, UPR: UserPlateRepository>(
         &self,
         blocker_id: Uuid,
         block_repository: &BR,
+        user_plate_repository: &UPR,
     ) -> AppResult<Vec<Block>> {
-        block_repository.find_by_blocker_id(blocker_id).await
+        // Блокировки, созданные этим пользователем
+        let mut result = block_repository.find_by_blocker_id(blocker_id).await?;
+
+        // Блокировки, созданные владельцами того же автомобиля (по номеру)
+        let plates = user_plate_repository.find_by_user_id(blocker_id).await?;
+        let plate_strings: Vec<String> = plates.iter().map(|p| p.plate.clone()).collect();
+        let mut shared = block_repository
+            .find_by_blocker_plates(&plate_strings)
+            .await?;
+
+        result.append(&mut shared);
+        result.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        result.dedup_by(|a, b| a.id == b.id);
+
+        Ok(result)
     }
 
     /// Получает блокировки для номера автомобиля пользователя
