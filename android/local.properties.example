@@ -1,0 +1,14 @@
+﻿# Android SDK location
+sdk.dir=C\:\\Users\\YOUR_USERNAME\\AppData\\Local\\Android\\Sdk
+
+# API Base URL - укажите адрес вашего сервера
+# Для локального сервера на эмуляторе: http://10.0.2.2:8080
+# Для локальной сети: http://192.168.X.X:8080
+# Для DDNS: https://your-domain.ddns.net:8080
+API_BASE_URL=http://10.0.2.2:8080
+
+# DDNS Authentication (опционально, только для DDNS с HTTP Basic Auth)
+# Если ваш DDNS требует базовую HTTP аутентификацию для доступа к серверу, укажите учетные данные
+# Это НЕ учетные данные приложения, а учетные данные для доступа через DDNS
+# DDNS_USERNAME=your_ddns_username
+# DDNS_PASSWORD=your_ddns_password

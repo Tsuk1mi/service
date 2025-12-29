@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Rimskiy</string>
+    
+    <!-- Auth -->
+    <string name="auth_title">Авторизация</string>
+    <string name="phone_hint">Номер телефона</string>
+    <string name="code_hint">Код подтверждения</string>
+    <string name="send_code">Отправить код</string>
+    <string name="verify_code">Подтвердить</string>
+    <string name="enter_code">Введите код из SMS</string>
+    
+    <!-- Profile -->
+    <string name="profile_title">Профиль</string>
+    <string name="name_hint">Имя (необязательно)</string>
+    <string name="plate_hint">Номер автомобиля</string>
+    <string name="telegram_hint">Telegram username</string>
+    <string name="show_contacts">Показывать контакты другим</string>
+    <string name="save">Сохранить</string>
+    
+    <!-- Blocks -->
+    <string name="my_blocks_title">Перекрытые автомобили</string>
+    <string name="blocked_by_title">Меня перекрыли</string>
+    <string name="add_block">Добавить номер</string>
+    <string name="block_plate_hint">Номер автомобиля</string>
+    
+    <!-- Actions -->
+    <string name="call">Позвонить</string>
+    <string name="sms">Отправить SMS</string>
+    <string name="telegram">Написать в Telegram</string>
+    
+    <!-- Common -->
+    <string name="loading">Загрузка...</string>
+    <string name="error">Ошибка</string>
+    <string name="retry">Повторить</string>
+    <string name="logout">Выйти</string>
+</resources>
+
