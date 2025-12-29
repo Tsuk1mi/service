@@ -4,7 +4,10 @@ use crate::repository::{
     BlockRepository, CreateNotificationData, NotificationRepository, UserPlateRepository,
     UserRepository,
 };
-use crate::service::{telephony_service::TelephonyService, telegram_service::TelegramService, validation_service::ValidationService};
+use crate::service::{
+    telegram_service::TelegramService, telephony_service::TelephonyService,
+    validation_service::ValidationService,
+};
 use crate::utils::encryption::Encryption;
 use uuid::Uuid;
 
@@ -187,8 +190,11 @@ impl BlockService {
                         });
 
                     // Отправка уведомлений в зависимости от выбранного способа
-                    let notification_method = request.notification_method.as_deref().unwrap_or("android_push");
-                    
+                    let notification_method = request
+                        .notification_method
+                        .as_deref()
+                        .unwrap_or("android_push");
+
                     if notification_method == "telegram" {
                         // Отправка через Telegram
                         if let Some(owner_user) = owner_user.as_ref() {
@@ -197,7 +203,7 @@ impl BlockService {
                                 let telegram_username_clone = telegram_username.clone();
                                 let normalized_plate_clone = normalized_plate.clone();
                                 let blocker_name_clone = blocker_name.to_string();
-                                
+
                                 tokio::spawn(async move {
                                     if let Err(e) = telegram_service_clone
                                         .send_block_notification(
@@ -207,11 +213,17 @@ impl BlockService {
                                         )
                                         .await
                                     {
-                                        tracing::warn!("Failed to send Telegram notification: {}", e);
+                                        tracing::warn!(
+                                            "Failed to send Telegram notification: {}",
+                                            e
+                                        );
                                     }
                                 });
                             } else {
-                                tracing::warn!("User {} has no Telegram username for notification", user_id);
+                                tracing::warn!(
+                                    "User {} has no Telegram username for notification",
+                                    user_id
+                                );
                             }
                         }
                     } else {
@@ -219,7 +231,8 @@ impl BlockService {
                         if let Some(owner_user) = owner_user.as_ref() {
                             if let Some(push_token) = owner_user.push_token.clone() {
                                 let title = "Ваш авто заблокирован";
-                                let body = format!("{} перекрыл {}.", blocker_name, normalized_plate);
+                                let body =
+                                    format!("{} перекрыл {}.", blocker_name, normalized_plate);
                                 let data = serde_json::json!({
                                     "block_id": block.id.to_string(),
                                     "blocked_plate": normalized_plate,
@@ -227,7 +240,8 @@ impl BlockService {
                                 });
                                 let push = self.push_service.clone();
                                 tokio::spawn(async move {
-                                    if let Err(e) = push.send_fcm(&push_token, title, &body, data).await
+                                    if let Err(e) =
+                                        push.send_fcm(&push_token, title, &body, data).await
                                     {
                                         tracing::warn!("Failed to send FCM push: {}", e);
                                     }

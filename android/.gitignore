@@ -1,16 +1,132 @@
+# ============================================
+# Gradle
+# ============================================
+.gradle/
+build/
+!build.gradle.kts
+!build.gradle
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+.gradletasknamecache
+
+# ============================================
+# Android Studio / IntelliJ IDEA
+# ============================================
+.idea/
 *.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+*.iws
+*.ipr
+.idea/caches/
+.idea/libraries/
+.idea/modules.xml
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/gradle.xml
+.idea/assetWizardSettings.xml
+.idea/dictionaries
+.idea/shelf
+.idea/navEditor.xml
+.idea/runConfigurations.xml
+.idea/compiler.xml
+.idea/misc.xml
+.idea/vcs.xml
+.idea/jarRepositories.xml
+.idea/.name
+.idea/encodings.xml
+.idea/scopes/
+.idea/render.experimental.xml
+
+# ============================================
+# Local configuration
+# ============================================
 local.properties
+local.properties.example
+
+# ============================================
+# Build outputs
+# ============================================
+/build/
+/app/build/
+/shared/build/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+*.jar
+!gradle-wrapper.jar
+
+# ============================================
+# Keystore files
+# ============================================
+*.jks
+*.keystore
+*.p12
+*.p8
+*.pem
+*.key
+release-keystore.jks
+release-keystore.jks.b64
+app/release-keystore.jks
+app/release-keystore.jks.b64
+
+# ============================================
+# External native build
+# ============================================
+.externalNativeBuild/
+.cxx/
+externalNativeBuild/
+
+# ============================================
+# NDK
+# ============================================
+obj/
+.externalNativeBuild/
+
+# ============================================
+# Proguard
+# ============================================
+proguard/
+proguard-rules.pro.bak
+
+# ============================================
+# Captures
+# ============================================
+captures/
+screenshots/
+
+# ============================================
+# OS
+# ============================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ============================================
+# Kotlin
+# ============================================
+*.kotlin_module
+*.kt.swp
+*.kt.swo
+
+# ============================================
+# Logs
+# ============================================
+*.log
+logs/
+
+# ============================================
+# Temporary files
+# ============================================
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
 

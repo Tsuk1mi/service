@@ -1,31 +1,191 @@
-/target
+# ============================================
+# Rust
+# ============================================
+/target/
+target/
+**/*.rs.bk
+**/*.pdb
+# Cargo.lock - обычно коммитится для приложений для воспроизводимости сборок
 
+# Rust build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+*.rlib
+*.d
+*.pdb
+
+# Rust incremental compilation
+**/incremental/
+**/.cargo/
+
+# ============================================
 # IDE
+# ============================================
 .idea/
 *.iml
+*.iws
+*.ipr
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
 
-# OS junk
+# RustRover / IntelliJ
+.idea/
+*.iml
+out/
+
+# ============================================
+# OS
+# ============================================
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
 
-# Environment / secrets
+# ============================================
+# Environment / Secrets
+# ============================================
 .env
 .env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.jks
+*.keystore
+secrets/
+*.secret
 
-# Rust
-target/
-
+# ============================================
 # Android / Gradle
+# ============================================
 android/.gradle/
 android/.idea/
 android/local.properties
 android/.cxx/
 android/build/
 android/app/build/
+android/shared/build/
+android/*.iml
+android/.gradle/
+android/captures/
+android/.externalNativeBuild/
+android/.cxx/
+android/local.properties
+android/release-keystore.jks
+android/release-keystore.jks.b64
 android/app/release-keystore.jks
 android/app/release-keystore.jks.b64
 android/app/*.apk
+android/app/*.aab
+android/app/*.ap_
+android/app/*.dex
+android/app/*.class
+android/app/proguard/
+android/app/release/
+android/app/debug/
 
-# Logs / temp
+# Android Studio
+android/.idea/
+android/*.iml
+android/.idea/workspace.xml
+android/.idea/tasks.xml
+android/.idea/gradle.xml
+android/.idea/assetWizardSettings.xml
+android/.idea/dictionaries
+android/.idea/libraries
+android/.idea/caches
+android/.idea/modules.xml
+android/.idea/.name
+android/.idea/misc.xml
+android/.idea/vcs.xml
+android/.idea/jarRepositories.xml
+
+# Gradle
+android/.gradle/
+android/build/
+android/gradle/
+android/gradlew
+android/gradlew.bat
+android/gradle-wrapper.jar
+android/gradle-wrapper.properties
+
+# ============================================
+# iOS / Xcode
+# ============================================
+ios/**/*.xcodeproj/*
+!ios/**/*.xcodeproj/project.pbxproj
+!ios/**/*.xcodeproj/xcshareddata/
+ios/**/*.xcworkspace/*
+!ios/**/*.xcworkspace/contents.xcworkspacedata
+ios/**/xcuserdata/
+ios/**/DerivedData/
+ios/**/build/
+ios/**/*.hmap
+ios/**/*.ipa
+ios/**/*.dSYM.zip
+ios/**/*.dSYM
+ios/**/Pods/
+ios/**/Podfile.lock
+ios/**/.swiftpm/
+ios/**/Package.resolved
+ios/**/*.xcuserstate
+ios/**/project.xcworkspace/
+ios/**/xcshareddata/
+
+# ============================================
+# Logs / Temp
+# ============================================
 *.log
+*.log.*
+logs/
 tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
+
+# ============================================
+# Build artifacts
+# ============================================
+release/
+dist/
+build/
+*.o
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+
+# ============================================
+# Database
+# ============================================
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+
+# ============================================
+# Misc
+# ============================================
+*.orig
+*.rej
+.cache/
+*.cache

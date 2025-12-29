@@ -22,7 +22,9 @@ use crate::repository::{
     PostgresBlockRepository, PostgresNotificationRepository, PostgresUserPlateRepository,
     PostgresUserRepository,
 };
-use crate::service::{AuthService, BlockService, PushService, TelephonyService, TelegramService, UserService};
+use crate::service::{
+    AuthService, BlockService, PushService, TelegramService, TelephonyService, UserService,
+};
 use crate::utils::encryption::Encryption;
 
 #[derive(Clone)]
