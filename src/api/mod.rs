@@ -22,7 +22,7 @@ use crate::repository::{
     PostgresBlockRepository, PostgresNotificationRepository, PostgresUserPlateRepository,
     PostgresUserRepository,
 };
-use crate::service::{AuthService, BlockService, PushService, TelephonyService, UserService};
+use crate::service::{AuthService, BlockService, PushService, TelephonyService, TelegramService, UserService};
 use crate::utils::encryption::Encryption;
 
 #[derive(Clone)]
@@ -31,6 +31,7 @@ pub struct AppState {
     pub encryption: Encryption,
     pub sms_service: SmsService,
     pub telephony_service: TelephonyService,
+    pub telegram_service: TelegramService,
     pub push_service: PushService,
     pub auth_service: AuthService,
     pub user_service: UserService,

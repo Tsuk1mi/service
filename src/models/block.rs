@@ -31,7 +31,8 @@ pub struct Block {
 #[schema(example = json!({
     "blocked_plate": "А123БВ777",
     "notify_owner": true,
-    "departure_time": "18:30"
+    "departure_time": "18:30",
+    "notification_method": "android_push"
 }))]
 pub struct CreateBlockRequest {
     /// Номер автомобиля, который блокируется
@@ -50,6 +51,10 @@ pub struct CreateBlockRequest {
     #[serde(default)]
     #[schema(example = "18:30")]
     pub departure_time: Option<String>,
+    /// Способ отправки уведомлений: "android_push" или "telegram"
+    #[serde(default)]
+    #[schema(example = "android_push")]
+    pub notification_method: Option<String>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]

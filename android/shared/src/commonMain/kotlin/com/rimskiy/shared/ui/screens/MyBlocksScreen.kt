@@ -29,6 +29,8 @@ import com.rimskiy.shared.domain.usecase.WarnOwnerUseCase
 import com.rimskiy.shared.utils.DateUtils
 import com.rimskiy.shared.utils.PlateUtils
 import com.rimskiy.shared.ui.components.TimePickerDialog
+import com.rimskiy.shared.data.local.SettingsManager
+import com.rimskiy.shared.platform.createSettings
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalMaterial3Api::class)
@@ -60,6 +62,7 @@ fun MyBlocksScreen(
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
+    val settingsManager = remember { SettingsManager(createSettings()) }
     
     // Загружаем профиль для получения времени выезда
     LaunchedEffect(Unit) {
@@ -275,16 +278,17 @@ fun MyBlocksScreen(
                         }
                     )
                     
-                    Row(
+                    // Время разблокировки - в колонку
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         OutlinedButton(
                             onClick = {
                                 hideKeyboard()
                                 showTimePicker = true
                             },
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.outlinedButtonColors(
                                 contentColor = if (departureTime.isNotBlank()) 
                                     MaterialTheme.colorScheme.primary 
@@ -295,15 +299,32 @@ fun MyBlocksScreen(
                             Icon(
                                 imageVector = Icons.Default.Schedule,
                                 contentDescription = null,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(20.dp)
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = departureTime.ifBlank { "Время разблокировки" },
-                                style = MaterialTheme.typography.bodyMedium
-                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.Start
+                            ) {
+                                Text(
+                                    text = if (departureTime.isNotBlank()) departureTime else "Время разблокировки",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                                if (departureTime.isBlank()) {
+                                    Text(
+                                        text = "Нажмите для выбора времени",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
                         }
-
+                    }
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         Button(
                                 onClick = {
                                     hideKeyboard()
@@ -318,7 +339,12 @@ fun MyBlocksScreen(
                                 
                                 // Создаем блокировку и проверяем время выезда владельца
                                 scope.launch {
-                                    createBlockUseCase(newPlate, false, departureTime.ifBlank { null }).fold(
+                                    val notificationMethod = when (settingsManager.notificationMethod) {
+                                        SettingsManager.NotificationMethod.ANDROID_PUSH -> "android_push"
+                                        SettingsManager.NotificationMethod.TELEGRAM -> "telegram"
+                                        else -> "android_push"
+                                    }
+                                    createBlockUseCase(newPlate, false, departureTime.ifBlank { null }, notificationMethod).fold(
                                         onSuccess = {
                                             newPlate = ""
                                             departureTime = ""

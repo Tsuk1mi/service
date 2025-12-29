@@ -9,6 +9,12 @@ class SettingsManager(private val settings: Settings) {
         private const val KEY_AUTH_TOKEN = "auth_token"
         private const val KEY_USER_ID = "user_id"
         private const val KEY_BASE_URL = "base_url"
+        private const val KEY_NOTIFICATION_METHOD = "notification_method"
+    }
+    
+    enum class NotificationMethod {
+        ANDROID_PUSH,
+        TELEGRAM
     }
 
     var authToken: String?
@@ -63,5 +69,16 @@ class SettingsManager(private val settings: Settings) {
 
     val isAuthenticated: Boolean
         get() = authToken != null
+    
+    var notificationMethod: NotificationMethod
+        get() = try {
+            val value = settings.getString(KEY_NOTIFICATION_METHOD, NotificationMethod.ANDROID_PUSH.name)
+            NotificationMethod.valueOf(value)
+        } catch (e: Exception) {
+            NotificationMethod.ANDROID_PUSH
+        }
+        set(value) {
+            settings.putString(KEY_NOTIFICATION_METHOD, value.name)
+        }
 }
 

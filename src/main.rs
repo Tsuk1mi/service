@@ -15,7 +15,7 @@ use rimskiy_service::repository::{
     PostgresUserRepository,
 };
 use rimskiy_service::service::{
-    AuthService, BlockService, PushService, TelephonyService, UserService,
+    AuthService, BlockService, PushService, TelephonyService, TelegramService, UserService,
 };
 use rimskiy_service::utils::encryption::Encryption;
 use std::net::SocketAddr;
@@ -58,6 +58,9 @@ async fn main() -> Result<()> {
 
     // Инициализируем сервис телефонии
     let telephony_service = TelephonyService::new(config.clone());
+    
+    // Инициализируем сервис Telegram
+    let telegram_service = TelegramService::new(&config);
 
     // Создаём репозитории
     let db_pool = std::sync::Arc::new(pool);
@@ -78,6 +81,7 @@ async fn main() -> Result<()> {
         encryption,
         sms_service,
         telephony_service,
+        telegram_service,
         auth_service,
         push_service,
         user_service,

@@ -14,7 +14,8 @@ data class Block(
 data class CreateBlockRequest(
     val blocked_plate: String,
     val notify_owner: Boolean = false,
-    val departure_time: String? = null
+    val departure_time: String? = null,
+    val notification_method: String? = null // "android_push" or "telegram"
 )
 
 @Serializable

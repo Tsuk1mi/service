@@ -29,6 +29,8 @@ import com.rimskiy.shared.domain.usecase.*
 import com.rimskiy.shared.utils.PhoneUtils
 import com.rimskiy.shared.utils.PlateUtils
 import com.rimskiy.shared.ui.components.TimePickerDialog
+import com.rimskiy.shared.data.local.SettingsManager
+import com.rimskiy.shared.platform.createSettings
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonPrimitive
 
@@ -57,9 +59,6 @@ fun ProfileScreen(
     var phoneTextFieldValue by remember { mutableStateOf(TextFieldValue("")) }
     var telegram by remember { mutableStateOf("") }
     var plate by remember { mutableStateOf("") }
-    var departureTime by remember { mutableStateOf("") }
-    var departureTimeError by remember { mutableStateOf<String?>(null) }
-    var showTimePicker by remember { mutableStateOf(false) }
     var plateError by remember { mutableStateOf<String?>(null) }
     var phoneError by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -68,6 +67,8 @@ fun ProfileScreen(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val scrollState = rememberScrollState()
+    val settingsManager = remember { SettingsManager(createSettings()) }
+    var notificationMethod by remember { mutableStateOf(settingsManager.notificationMethod) }
     
     fun hideKeyboard() {
         focusManager.clearFocus()
@@ -86,7 +87,6 @@ fun ProfileScreen(
                 phoneTextFieldValue = TextFieldValue(phone)
                 telegram = profile.telegram ?: ""
                 plate = profile.plate
-                departureTime = profile.departure_time ?: ""
                 isLoading = false
             },
             onFailure = { e ->
@@ -341,7 +341,7 @@ fun ProfileScreen(
                     }
                 }
 
-                // Карточка с временем выезда
+                // Карточка с настройками уведомлений
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
@@ -356,61 +356,90 @@ fun ProfileScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Info,
+                                imageVector = Icons.Default.Notifications,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Время выезда",
+                                text = "Уведомления о блокировках",
                                 style = MaterialTheme.typography.titleMedium
                             )
                         }
                         
                         Divider()
-
-                        OutlinedButton(
-                            onClick = {
-                                hideKeyboard()
-                                showTimePicker = true
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = if (departureTime.isNotBlank()) 
-                                    MaterialTheme.colorScheme.primary 
-                                else 
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        
+                        Text(
+                            text = "Выберите способ получения уведомлений о блокировках:",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Schedule,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                horizontalAlignment = Alignment.Start
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(
-                                    text = if (departureTime.isNotBlank()) departureTime else "Время выезда",
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
-                                if (departureTime.isBlank()) {
-                                    Text(
-                                        text = "Нажмите для выбора времени",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    RadioButton(
+                                        selected = notificationMethod == SettingsManager.NotificationMethod.ANDROID_PUSH,
+                                        onClick = {
+                                            notificationMethod = SettingsManager.NotificationMethod.ANDROID_PUSH
+                                            settingsManager.notificationMethod = SettingsManager.NotificationMethod.ANDROID_PUSH
+                                        }
                                     )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Android Push",
+                                            style = MaterialTheme.typography.bodyLarge
+                                        )
+                                        Text(
+                                            text = "Уведомления через приложение",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    RadioButton(
+                                        selected = notificationMethod == SettingsManager.NotificationMethod.TELEGRAM,
+                                        onClick = {
+                                            notificationMethod = SettingsManager.NotificationMethod.TELEGRAM
+                                            settingsManager.notificationMethod = SettingsManager.NotificationMethod.TELEGRAM
+                                        }
+                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Telegram",
+                                            style = MaterialTheme.typography.bodyLarge
+                                        )
+                                        Text(
+                                            text = "Уведомления через Telegram бота",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
                             }
                         }
-
-                        Text(
-                            text = "Укажите время, когда вы планируете уехать. Это поможет людям, которые заблокировали ваш автомобиль.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
                 }
 
@@ -433,7 +462,6 @@ fun ProfileScreen(
                         message = null
                         phoneError = null
                         plateError = null
-                        departureTimeError = null
                         scope.launch {
                             val currentPlate = user?.plate ?: ""
                             val plateToSend = if (currentPlate.isNotBlank()) {
@@ -453,7 +481,6 @@ fun ProfileScreen(
                             } else null
                             
                             val normalizedTelegram = telegram.ifBlank { null }?.removePrefix("@")
-                            val normalizedDepartureTime = departureTime.ifBlank { null }
                             
                             updateProfileUseCase(
                                 UpdateUserRequest(
@@ -464,7 +491,7 @@ fun ProfileScreen(
                                     show_contacts = null,
                                     owner_type = null,
                                     owner_info = null,
-                                    departure_time = normalizedDepartureTime
+                                    departure_time = null
                                 )
                             ).fold(
                                 onSuccess = {
@@ -503,18 +530,5 @@ fun ProfileScreen(
                 }
             }
         }
-    }
-    
-    // Диалог выбора времени
-    if (showTimePicker) {
-        TimePickerDialog(
-            initialTime = departureTime.ifBlank { null },
-            onTimeSelected = { time ->
-                departureTime = time ?: ""
-                departureTimeError = null
-            },
-            onDismiss = { showTimePicker = false },
-            title = "Время выезда"
-        )
     }
 }

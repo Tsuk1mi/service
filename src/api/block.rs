@@ -62,6 +62,7 @@ pub async fn create_block(
             &state.user_repository,
             &state.user_plate_repository,
             &state.telephony_service,
+            &state.telegram_service,
         )
         .await
         .map_err(|e| {

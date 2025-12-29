@@ -4,7 +4,7 @@ use crate::repository::{
     BlockRepository, CreateNotificationData, NotificationRepository, UserPlateRepository,
     UserRepository,
 };
-use crate::service::{telephony_service::TelephonyService, validation_service::ValidationService};
+use crate::service::{telephony_service::TelephonyService, telegram_service::TelegramService, validation_service::ValidationService};
 use crate::utils::encryption::Encryption;
 use uuid::Uuid;
 
@@ -42,6 +42,7 @@ impl BlockService {
         user_repository: &UR,
         user_plate_repository: &UPR,
         telephony_service: &TelephonyService,
+        telegram_service: &TelegramService,
     ) -> AppResult<Block> {
         // Нормализация и валидация
         request.normalize();
@@ -185,23 +186,53 @@ impl BlockService {
                             tracing::error!("Failed to create notification: {:?}", e);
                         });
 
-                    // Пуш-уведомление через FCM, если есть токен
-                    if let Some(owner_user) = owner_user.as_ref() {
-                        if let Some(push_token) = owner_user.push_token.clone() {
-                            let title = "Ваш авто заблокирован";
-                            let body = format!("{} перекрыл {}.", blocker_name, normalized_plate);
-                            let data = serde_json::json!({
-                                "block_id": block.id.to_string(),
-                                "blocked_plate": normalized_plate,
-                                "blocker_name": blocker_name,
-                            });
-                            let push = self.push_service.clone();
-                            tokio::spawn(async move {
-                                if let Err(e) = push.send_fcm(&push_token, title, &body, data).await
-                                {
-                                    tracing::warn!("Failed to send FCM push: {}", e);
-                                }
-                            });
+                    // Отправка уведомлений в зависимости от выбранного способа
+                    let notification_method = request.notification_method.as_deref().unwrap_or("android_push");
+                    
+                    if notification_method == "telegram" {
+                        // Отправка через Telegram
+                        if let Some(owner_user) = owner_user.as_ref() {
+                            if let Some(telegram_username) = owner_user.telegram.as_ref() {
+                                let telegram_service_clone = telegram_service.clone();
+                                let telegram_username_clone = telegram_username.clone();
+                                let normalized_plate_clone = normalized_plate.clone();
+                                let blocker_name_clone = blocker_name.to_string();
+                                
+                                tokio::spawn(async move {
+                                    if let Err(e) = telegram_service_clone
+                                        .send_block_notification(
+                                            &telegram_username_clone,
+                                            &normalized_plate_clone,
+                                            &blocker_name_clone,
+                                        )
+                                        .await
+                                    {
+                                        tracing::warn!("Failed to send Telegram notification: {}", e);
+                                    }
+                                });
+                            } else {
+                                tracing::warn!("User {} has no Telegram username for notification", user_id);
+                            }
+                        }
+                    } else {
+                        // Отправка через Android Push (по умолчанию)
+                        if let Some(owner_user) = owner_user.as_ref() {
+                            if let Some(push_token) = owner_user.push_token.clone() {
+                                let title = "Ваш авто заблокирован";
+                                let body = format!("{} перекрыл {}.", blocker_name, normalized_plate);
+                                let data = serde_json::json!({
+                                    "block_id": block.id.to_string(),
+                                    "blocked_plate": normalized_plate,
+                                    "blocker_name": blocker_name,
+                                });
+                                let push = self.push_service.clone();
+                                tokio::spawn(async move {
+                                    if let Err(e) = push.send_fcm(&push_token, title, &body, data).await
+                                    {
+                                        tracing::warn!("Failed to send FCM push: {}", e);
+                                    }
+                                });
+                            }
                         }
                     }
 
