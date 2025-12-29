@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use axum::{middleware, routing::get, Router};
 use rimskiy_service::api::{
-    auth_router, block_router, notification_router, ocr_router, server_info_router,
-    user_plate_router, user_router, AppState,
+    app_download_router, auth_router, block_router, notification_router, ocr_router,
+    server_info_router, user_plate_router, user_router, AppState,
 };
 use rimskiy_service::auth::sms::SmsService;
 use rimskiy_service::config::Config;
@@ -96,6 +96,7 @@ async fn main() -> Result<()> {
         .route("/health", get(health_check))
         .merge(SwaggerUi::new("/swagger-ui").url("/api-doc/openapi.json", openapi.clone()))
         .merge(server_info_router())
+        .nest("/api/app", app_download_router())
         .nest("/api/auth", auth_router())
         .nest("/api/ocr", ocr_router())
         .nest(

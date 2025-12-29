@@ -1,12 +1,15 @@
 package com.rimskiy.shared.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -21,12 +24,14 @@ import androidx.compose.material.icons.filled.Update
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -44,6 +49,7 @@ fun HomeScreen(
     onNavigateToAbout: () -> Unit,
 ) {
     val scrollState = rememberScrollState()
+    val uriHandler = LocalUriHandler.current
 
     Column(
         modifier = Modifier
@@ -92,47 +98,76 @@ fun HomeScreen(
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                     )
                 }
-                downloadUrl?.let {
-                    Text(
-                        text = "Скачать обновление: $it",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                downloadUrl?.let { url ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.clickable { uriHandler.openUri(url) }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Link,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = "Скачать обновление",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
                 }
             }
         }
 
-        // Карточки-ярлыки
+        // Быстрые действия
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            HomeNavCard(
-                title = "Профиль",
-                subtitle = "Данные и автомобили",
-                icon = Icons.Default.Person,
-                onClick = onNavigateToProfile
+            Text(
+                text = "Быстрые действия",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.align(Alignment.Start)
             )
-            HomeNavCard(
-                title = "Мои блокировки",
-                subtitle = "Кого вы перекрыли",
-                icon = Icons.Default.List,
-                onClick = onNavigateToMyBlocks
-            )
-            HomeNavCard(
-                title = "Меня перекрыли",
-                subtitle = "Кто блокирует ваш авто",
-                icon = Icons.Default.Warning,
-                onClick = onNavigateToBlockedBy
-            )
-            HomeNavCard(
-                title = "Уведомления",
-                subtitle = "Все события и алерты",
-                icon = Icons.Default.Notifications,
-                onClick = onNavigateToNotifications
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                HomeNavTile(
+                    title = "Профиль",
+                    subtitle = "Данные и авто",
+                    icon = Icons.Default.Person,
+                    modifier = Modifier.weight(1f),
+                    onClick = onNavigateToProfile
+                )
+                HomeNavTile(
+                    title = "Мои блокировки",
+                    subtitle = "Кого перекрыли",
+                    icon = Icons.Default.List,
+                    modifier = Modifier.weight(1f),
+                    onClick = onNavigateToMyBlocks
+                )
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                HomeNavTile(
+                    title = "Меня перекрыли",
+                    subtitle = "Кто блокирует",
+                    icon = Icons.Default.Warning,
+                    modifier = Modifier.weight(1f),
+                    onClick = onNavigateToBlockedBy
+                )
+                HomeNavTile(
+                    title = "Уведомления",
+                    subtitle = "События и алерты",
+                    icon = Icons.Default.Notifications,
+                    modifier = Modifier.weight(1f),
+                    onClick = onNavigateToNotifications
+                )
+            }
             HomeNavCard(
                 title = "О приложении",
                 subtitle = "Версия, ссылки, контакт",
@@ -185,6 +220,46 @@ private fun HomeNavCard(
                 imageVector = Icons.Default.DirectionsCar,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HomeNavTile(
+    title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    ElevatedCard(
+        modifier = modifier.height(120.dp),
+        onClick = onClick,
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Text(text = title, style = MaterialTheme.typography.titleMedium)
+            }
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }

@@ -1,3 +1,4 @@
+pub mod app_download;
 pub mod auth;
 pub mod block;
 pub mod notification;
@@ -6,6 +7,7 @@ pub mod server_info;
 pub mod user;
 pub mod user_plate;
 
+pub use app_download::*;
 pub use auth::*;
 pub use block::*;
 pub use notification::*;

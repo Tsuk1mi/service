@@ -26,6 +26,8 @@ cp .env.example .env
 - `SMS_CODE_EXPIRATION_MINUTES` - Время жизни SMS кода в минутах (по умолчанию: `10`)
 - `SMS_CODE_LENGTH` - Длина SMS кода (по умолчанию: `4`)
 - `RETURN_SMS_CODE_IN_RESPONSE` - Возвращать ли SMS код в ответе API (по умолчанию: `true`)
+- `APP_APK_PATH` - Путь к APK файлу для скачивания (по умолчанию: `./android/app/build/outputs/apk/release/app-release.apk`)
+- `APP_DOWNLOAD_URL` - URL для скачивания приложения (используется в `/server-info`, опционально)
 
 ## Генерация ключа шифрования
 
@@ -51,6 +53,38 @@ sqlx migrate run
 ```bash
 cargo run
 ```
+
+4. (Опционально) Запустите Telegram бота для авторизации:
+```bash
+cargo run --bin telegram_bot
+```
+
+Для работы бота необходимо указать `TELEGRAM_BOT_TOKEN` в `.env` файле (получить токен можно у [@BotFather](https://t.me/BotFather) в Telegram).
+
+## Telegram Бот для авторизации
+
+Telegram бот позволяет получать коды авторизации через Telegram вместо SMS.
+
+### Настройка бота
+
+1. Создайте бота через [@BotFather](https://t.me/BotFather) в Telegram
+2. Получите токен бота
+3. Добавьте токен в `.env` файл:
+   ```
+   TELEGRAM_BOT_TOKEN=your-telegram-bot-token-here
+   ```
+
+### Команды бота
+
+- `/help` - Показать справку
+- `/code <телефон>` - Запросить код авторизации для указанного номера телефона
+
+Пример использования:
+```
+/code +79001234567
+```
+
+Бот отправит код авторизации в Telegram, который можно использовать в приложении для входа.
 
 ## API Документация
 
@@ -87,8 +121,12 @@ Swagger UI позволяет:
 - `DELETE /api/blocks/{id}` - Удаление блокировки (требует авторизации)
 - `POST /api/blocks/{id}/warn-owner` - Предупредить владельца (звонок) (требует авторизации)
 
+#### Приложение
+- `GET /api/app/download` - Скачать релиз приложения (APK файл)
+
 #### Другие
 - `GET /health` - Проверка здоровья сервера
+- `GET /server-info` - Информация о сервере (версия, URL, минимальная версия клиента)
 
 ## Особенности
 
