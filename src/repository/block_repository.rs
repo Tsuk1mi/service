@@ -1,7 +1,7 @@
-use uuid::Uuid;
 use crate::db::DbPool;
 use crate::error::AppResult;
 use crate::models::block::Block;
+use uuid::Uuid;
 
 /// Трейт для работы с блокировками в БД (DIP)
 #[async_trait::async_trait]
@@ -31,14 +31,14 @@ impl PostgresBlockRepository {
 impl BlockRepository for PostgresBlockRepository {
     async fn create(&self, blocker_id: Uuid, blocked_plate: &str) -> AppResult<Block> {
         let block_id = uuid::Uuid::new_v4();
-        
+
         // Используем RETURNING для избежания дополнительного SELECT
         let block = sqlx::query_as::<_, Block>(
             r#"
             INSERT INTO blocks (id, blocker_id, blocked_plate, created_at)
             VALUES ($1, $2, $3, NOW())
             RETURNING id, blocker_id, blocked_plate, created_at
-            "#
+            "#,
         )
         .bind(block_id)
         .bind(blocker_id)
@@ -56,7 +56,7 @@ impl BlockRepository for PostgresBlockRepository {
             FROM blocks
             WHERE blocker_id = $1
             ORDER BY created_at DESC
-            "#
+            "#,
         )
         .bind(blocker_id)
         .fetch_all(&*self.db)
@@ -73,7 +73,7 @@ impl BlockRepository for PostgresBlockRepository {
             FROM blocks
             WHERE UPPER(TRIM(blocked_plate)) = UPPER(TRIM($1))
             ORDER BY created_at DESC
-            "#
+            "#,
         )
         .bind(blocked_plate)
         .fetch_all(&*self.db)
@@ -88,7 +88,7 @@ impl BlockRepository for PostgresBlockRepository {
             SELECT id, blocker_id, blocked_plate, created_at
             FROM blocks
             WHERE id = $1
-            "#
+            "#,
         )
         .bind(block_id)
         .fetch_optional(&*self.db)
@@ -102,7 +102,7 @@ impl BlockRepository for PostgresBlockRepository {
             r#"
             DELETE FROM blocks
             WHERE id = $1 AND blocker_id = $2
-            "#
+            "#,
         )
         .bind(block_id)
         .bind(blocker_id)
@@ -111,7 +111,7 @@ impl BlockRepository for PostgresBlockRepository {
 
         if result.rows_affected() == 0 {
             return Err(crate::error::AppError::NotFound(
-                "Block not found or you don't have permission to delete it".to_string()
+                "Block not found or you don't have permission to delete it".to_string(),
             ));
         }
 
@@ -128,7 +128,7 @@ impl BlockRepository for PostgresBlockRepository {
                 AND UPPER(TRIM(blocked_plate)) = UPPER(TRIM($2))
                 LIMIT 1
             ) as exists
-            "#
+            "#,
         )
         .bind(blocker_id)
         .bind(blocked_plate)
@@ -138,4 +138,3 @@ impl BlockRepository for PostgresBlockRepository {
         Ok(exists.0)
     }
 }
-

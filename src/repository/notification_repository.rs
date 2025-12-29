@@ -1,13 +1,17 @@
-use uuid::Uuid;
 use crate::db::DbPool;
 use crate::error::AppResult;
 use crate::models::notification::Notification;
+use uuid::Uuid;
 
 /// Трейт для работы с уведомлениями в БД
 #[async_trait::async_trait]
 pub trait NotificationRepository: Send + Sync {
     async fn create(&self, notification: &CreateNotificationData) -> AppResult<Notification>;
-    async fn find_by_user_id(&self, user_id: Uuid, unread_only: bool) -> AppResult<Vec<Notification>>;
+    async fn find_by_user_id(
+        &self,
+        user_id: Uuid,
+        unread_only: bool,
+    ) -> AppResult<Vec<Notification>>;
     async fn mark_as_read(&self, notification_id: Uuid, user_id: Uuid) -> AppResult<()>;
     async fn mark_all_as_read(&self, user_id: Uuid) -> AppResult<()>;
 }
@@ -57,7 +61,11 @@ impl NotificationRepository for PostgresNotificationRepository {
         Ok(notification)
     }
 
-    async fn find_by_user_id(&self, user_id: Uuid, unread_only: bool) -> AppResult<Vec<Notification>> {
+    async fn find_by_user_id(
+        &self,
+        user_id: Uuid,
+        unread_only: bool,
+    ) -> AppResult<Vec<Notification>> {
         // Оптимизированный запрос с использованием составного индекса
         let query = if unread_only {
             r#"
@@ -116,4 +124,3 @@ impl NotificationRepository for PostgresNotificationRepository {
         Ok(())
     }
 }
-

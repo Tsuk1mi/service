@@ -1,10 +1,10 @@
-use sqlx::PgPool;
 use crate::error::AppResult;
+use sqlx::PgPool;
 
 /// Автоматически создаёт БД и таблицы, если их нет
 pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
     tracing::info!("Ensuring database schema exists...");
-    
+
     // Создаём функцию для автоматического обновления updated_at
     sqlx::query(
         r#"
@@ -15,11 +15,11 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
             RETURN NEW;
         END;
         $$ language 'plpgsql';
-        "#
+        "#,
     )
     .execute(pool)
     .await?;
-    
+
     // Создаём таблицу users, если её нет
     sqlx::query(
         r#"
@@ -45,7 +45,7 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
     )
     .execute(pool)
     .await?;
-    
+
     // Гарантируем наличие колонки plate (для старых БД)
     sqlx::query(
         r#"
@@ -64,21 +64,21 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
                 ALTER TABLE users ADD COLUMN phone_hash TEXT;
             END IF;
         END $$;
-        "#
+        "#,
     )
     .execute(pool)
     .await?;
-    
+
     // Создаём триггер для автоматического обновления updated_at
     // Сначала удаляем триггер, если он существует
     let _ = sqlx::query(
         r#"
         DROP TRIGGER IF EXISTS update_users_updated_at ON users
-        "#
+        "#,
     )
     .execute(pool)
     .await;
-    
+
     // Затем создаём новый триггер
     sqlx::query(
         r#"
@@ -86,11 +86,11 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
             BEFORE UPDATE ON users
             FOR EACH ROW
             EXECUTE FUNCTION update_updated_at_column()
-        "#
+        "#,
     )
     .execute(pool)
     .await?;
-    
+
     // Добавляем новые колонки, если их нет (для существующих БД)
     sqlx::query(
         r#"
@@ -130,7 +130,7 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
     )
     .execute(pool)
     .await?;
-    
+
     // Создаём таблицу blocks, если её нет
     sqlx::query(
         r#"
@@ -148,33 +148,33 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
     )
     .execute(pool)
     .await?;
-    
+
     // Создаём составные индексы для оптимизации запросов блокировок
     sqlx::query(
         r#"
         CREATE INDEX IF NOT EXISTS idx_blocks_blocker_id ON blocks(blocker_id)
-        "#
+        "#,
     )
     .execute(pool)
     .await?;
-    
+
     sqlx::query(
         r#"
         CREATE INDEX IF NOT EXISTS idx_blocks_blocked_plate ON blocks(blocked_plate)
-        "#
+        "#,
     )
     .execute(pool)
     .await?;
-    
+
     // Составной индекс для быстрого поиска блокировок по blocker_id и created_at
     sqlx::query(
         r#"
         CREATE INDEX IF NOT EXISTS idx_blocks_blocker_created ON blocks(blocker_id, created_at DESC)
-        "#
+        "#,
     )
     .execute(pool)
     .await?;
-    
+
     // Составной индекс для поиска блокировок по номеру и дате (для проверки блокировки)
     sqlx::query(
         r#"
@@ -183,16 +183,16 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
     )
     .execute(pool)
     .await?;
-    
+
     // Индекс для users.plate с нормализацией (верхний регистр для поиска)
     sqlx::query(
         r#"
         CREATE INDEX IF NOT EXISTS idx_users_plate ON users(UPPER(TRIM(plate)))
-        "#
+        "#,
     )
     .execute(pool)
     .await?;
-    
+
     // Индекс для оптимизации поиска пользователей по телефону (если используется)
     sqlx::query(
         r#"
@@ -208,7 +208,7 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
     )
     .execute(pool)
     .await?;
-    
+
     // Индекс для поиска по telegram (если используется)
     sqlx::query(
         r#"
@@ -217,7 +217,7 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
     )
     .execute(pool)
     .await?;
-    
+
     // Создаём таблицу для множественных автомобилей пользователя
     sqlx::query(
         r#"
@@ -233,21 +233,21 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
             CONSTRAINT plate_format CHECK (LENGTH(TRIM(plate)) >= 8 AND LENGTH(plate) <= 15),
             UNIQUE(user_id, plate)
         )
-        "#
+        "#,
     )
     .execute(pool)
     .await?;
-    
+
     // Создаём триггер для автоматического обновления updated_at в user_plates
     // Сначала удаляем триггер, если он существует
     let _ = sqlx::query(
         r#"
         DROP TRIGGER IF EXISTS update_user_plates_updated_at ON user_plates
-        "#
+        "#,
     )
     .execute(pool)
     .await;
-    
+
     // Затем создаём новый триггер
     sqlx::query(
         r#"
@@ -255,11 +255,11 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
             BEFORE UPDATE ON user_plates
             FOR EACH ROW
             EXECUTE FUNCTION update_updated_at_column()
-        "#
+        "#,
     )
     .execute(pool)
     .await?;
-    
+
     // Гарантируем наличие колонки departure_time в user_plates
     sqlx::query(
         r#"
@@ -272,20 +272,20 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
                 ALTER TABLE user_plates ADD COLUMN departure_time TIME;
             END IF;
         END $$;
-        "#
+        "#,
     )
     .execute(pool)
     .await?;
-    
+
     // Создаём индексы для user_plates
     sqlx::query(
         r#"
         CREATE INDEX IF NOT EXISTS idx_user_plates_user_id ON user_plates(user_id)
-        "#
+        "#,
     )
     .execute(pool)
     .await?;
-    
+
     // Гарантируем наличие push_token в users
     sqlx::query(
         r#"
@@ -298,19 +298,19 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
                 ALTER TABLE users ADD COLUMN push_token TEXT;
             END IF;
         END $$;
-        "#
+        "#,
     )
     .execute(pool)
     .await?;
-    
+
     sqlx::query(
         r#"
         CREATE INDEX IF NOT EXISTS idx_user_plates_plate ON user_plates(plate)
-        "#
+        "#,
     )
     .execute(pool)
     .await?;
-    
+
     // Уникальный частичный индекс для обеспечения одного основного номера на пользователя
     sqlx::query(
         r#"
@@ -319,7 +319,7 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
     )
     .execute(pool)
     .await?;
-    
+
     // Индекс для поиска пользователя по номеру авто (с нормализацией)
     sqlx::query(
         r#"
@@ -328,7 +328,7 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
     )
     .execute(pool)
     .await?;
-    
+
     // Функциональный индекс для быстрого поиска по номеру (без учета регистра и пробелов)
     sqlx::query(
         r#"
@@ -337,7 +337,7 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
     )
     .execute(pool)
     .await?;
-    
+
     // Миграция существующих данных: копируем plate из users в user_plates
     sqlx::query(
         r#"
@@ -353,7 +353,7 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
     )
     .execute(pool)
     .await?;
-    
+
     // Создаём таблицу notifications, если её нет
     sqlx::query(
         r#"
@@ -375,32 +375,32 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
     )
     .execute(pool)
     .await?;
-    
+
     // Создаём индексы для notifications
     sqlx::query(
         r#"
         CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id)
-        "#
+        "#,
     )
     .execute(pool)
     .await?;
-    
+
     sqlx::query(
         r#"
         CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read)
-        "#
+        "#,
     )
     .execute(pool)
     .await?;
-    
+
     sqlx::query(
         r#"
         CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC)
-        "#
+        "#,
     )
     .execute(pool)
     .await?;
-    
+
     sqlx::query(
         r#"
         CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, read, created_at DESC)
@@ -408,7 +408,7 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
     )
     .execute(pool)
     .await?;
-    
+
     // Покрывающий индекс для частого запроса списка уведомлений
     // INCLUDE доступен только в PostgreSQL 11+, игнорируем ошибку если не поддерживается
     let _ = sqlx::query(
@@ -416,16 +416,19 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
         CREATE INDEX IF NOT EXISTS idx_notifications_user_read_covering 
         ON notifications(user_id, read, created_at DESC) 
         INCLUDE (id, type, title, message)
-        "#
+        "#,
     )
     .execute(pool)
     .await
     .map_err(|e| {
         // Если INCLUDE не поддерживается (старая версия PostgreSQL), логируем и продолжаем
-        tracing::warn!("Covering index not supported (PostgreSQL 11+ required), skipping: {}", e);
+        tracing::warn!(
+            "Covering index not supported (PostgreSQL 11+ required), skipping: {}",
+            e
+        );
         e
     });
-    
+
     // Индекс для blocks с нормализованным номером
     sqlx::query(
         r#"
@@ -434,8 +437,7 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
     )
     .execute(pool)
     .await?;
-    
+
     tracing::info!("Database schema ensured successfully");
     Ok(())
 }
-

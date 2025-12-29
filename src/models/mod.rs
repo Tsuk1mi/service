@@ -1,12 +1,11 @@
-pub mod user;
-pub mod block;
 pub mod auth;
-pub mod user_plate;
+pub mod block;
 pub mod notification;
+pub mod user;
+pub mod user_plate;
 
-pub use user::*;
-pub use block::*;
 pub use auth::*;
-pub use user_plate::*;
+pub use block::*;
 pub use notification::*;
-
+pub use user::*;
+pub use user_plate::*;

@@ -46,20 +46,28 @@ pub async fn create_block(
 ) -> AppResult<Json<Block>> {
     let blocker_id = auth_state.user_id;
 
-    tracing::info!("API: create_block called for user {} with plate {}", blocker_id, payload.blocked_plate);
-
-    let block = state.block_service.create_block(
+    tracing::info!(
+        "API: create_block called for user {} with plate {}",
         blocker_id,
-        payload,
-        &state.block_repository,
-        &state.notification_repository,
-        &state.user_repository,
-        &state.user_plate_repository,
-        &state.telephony_service,
-    ).await.map_err(|e| {
-        tracing::error!("API: Failed to create block: {:?}", e);
-        e
-    })?;
+        payload.blocked_plate
+    );
+
+    let block = state
+        .block_service
+        .create_block(
+            blocker_id,
+            payload,
+            &state.block_repository,
+            &state.notification_repository,
+            &state.user_repository,
+            &state.user_plate_repository,
+            &state.telephony_service,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!("API: Failed to create block: {:?}", e);
+            e
+        })?;
 
     tracing::info!("API: Block created successfully: {}", block.id);
     Ok(Json(block))
@@ -86,13 +94,16 @@ pub async fn get_blocks_for_my_plate(
 ) -> AppResult<Json<Vec<BlockWithBlockerInfo>>> {
     let user_id = auth_state.user_id;
 
-    let blocks = state.block_service.get_blocks_for_my_plate(
-        user_id,
-        params.my_plate,
-        &state.block_repository,
-        &state.user_repository,
-        &state.user_plate_repository,
-    ).await?;
+    let blocks = state
+        .block_service
+        .get_blocks_for_my_plate(
+            user_id,
+            params.my_plate,
+            &state.block_repository,
+            &state.user_repository,
+            &state.user_plate_repository,
+        )
+        .await?;
 
     Ok(Json(blocks))
 }
@@ -114,10 +125,10 @@ pub async fn get_my_blocks(
 ) -> AppResult<Json<Vec<Block>>> {
     let blocker_id = auth_state.user_id;
 
-    let blocks = state.block_service.get_my_blocks(
-        blocker_id,
-        &state.block_repository,
-    ).await?;
+    let blocks = state
+        .block_service
+        .get_my_blocks(blocker_id, &state.block_repository)
+        .await?;
 
     Ok(Json(blocks))
 }
@@ -144,13 +155,14 @@ pub async fn delete_block(
 ) -> AppResult<Json<serde_json::Value>> {
     let blocker_id = auth_state.user_id;
 
-    state.block_service.delete_block(
-        block_id,
-        blocker_id,
-        &state.block_repository,
-    ).await?;
+    state
+        .block_service
+        .delete_block(block_id, blocker_id, &state.block_repository)
+        .await?;
 
-    Ok(Json(serde_json::json!({ "message": "Block deleted successfully" })))
+    Ok(Json(
+        serde_json::json!({ "message": "Block deleted successfully" }),
+    ))
 }
 
 #[derive(Deserialize)]
@@ -176,11 +188,14 @@ pub async fn check_block(
     State(state): State<AppState>,
     Query(params): Query<CheckBlockQuery>,
 ) -> AppResult<Json<CheckBlockResponse>> {
-    let response = state.block_service.check_block(
-        &params.plate,
-        &state.block_repository,
-        &state.user_repository,
-    ).await?;
+    let response = state
+        .block_service
+        .check_block(
+            &params.plate,
+            &state.block_repository,
+            &state.user_repository,
+        )
+        .await?;
 
     Ok(Json(response))
 }
@@ -207,21 +222,30 @@ pub async fn warn_owner(
 ) -> AppResult<Json<serde_json::Value>> {
     let blocker_id = auth_state.user_id;
 
-    tracing::info!("API: warn_owner called for user {} and block {}", blocker_id, block_id);
-
-    state.block_service.warn_owner(
-        block_id,
+    tracing::info!(
+        "API: warn_owner called for user {} and block {}",
         blocker_id,
-        &state.block_repository,
-        &state.user_repository,
-        &state.user_plate_repository,
-        &state.telephony_service,
-    ).await.map_err(|e| {
-        tracing::error!("API: Failed to warn owner: {:?}", e);
-        e
-    })?;
+        block_id
+    );
+
+    state
+        .block_service
+        .warn_owner(
+            block_id,
+            blocker_id,
+            &state.block_repository,
+            &state.user_repository,
+            &state.user_plate_repository,
+            &state.telephony_service,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!("API: Failed to warn owner: {:?}", e);
+            e
+        })?;
 
     tracing::info!("API: Owner warned successfully for block {}", block_id);
-    Ok(Json(serde_json::json!({ "message": "Owner warned successfully" })))
+    Ok(Json(
+        serde_json::json!({ "message": "Owner warned successfully" }),
+    ))
 }
-

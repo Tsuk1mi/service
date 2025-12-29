@@ -1,7 +1,7 @@
 use axum::{
     extract::{Extension, Query, State},
     response::Json,
-    routing::{get, put, Router, post},
+    routing::{get, post, put, Router},
 };
 use serde::Deserialize;
 use serde::Serialize;
@@ -9,7 +9,7 @@ use serde::Serialize;
 use crate::api::AppState;
 use crate::auth::middleware::AuthState;
 use crate::error::AppResult;
-use crate::models::user::{UpdateUserRequest, UserResponse, PublicUserInfo};
+use crate::models::user::{PublicUserInfo, UpdateUserRequest, UserResponse};
 use crate::repository::user_repository::UserRepository;
 
 pub fn user_router() -> Router<AppState> {
@@ -42,11 +42,14 @@ pub async fn get_profile(
 ) -> AppResult<Json<UserResponse>> {
     let user_id = auth_state.user_id;
 
-    let response = state.user_service.get_profile(
-        user_id,
-        &state.user_repository,
-        &state.user_plate_repository,
-    ).await?;
+    let response = state
+        .user_service
+        .get_profile(
+            user_id,
+            &state.user_repository,
+            &state.user_plate_repository,
+        )
+        .await?;
     Ok(Json(response))
 }
 
@@ -80,15 +83,23 @@ pub async fn update_profile(
         payload.owner_info.is_some()
     );
 
-    let response = state.user_service.update_profile(
-        user_id,
-        payload,
-        &state.user_repository,
-        &state.user_plate_repository,
-    ).await.map_err(|e| {
-        tracing::error!("API: Failed to update profile for user {}: {:?}", user_id, e);
-        e
-    })?;
+    let response = state
+        .user_service
+        .update_profile(
+            user_id,
+            payload,
+            &state.user_repository,
+            &state.user_plate_repository,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                "API: Failed to update profile for user {}: {:?}",
+                user_id,
+                e
+            );
+            e
+        })?;
 
     tracing::info!("API: Profile updated successfully for user {}", user_id);
     Ok(Json(response))
@@ -113,12 +124,15 @@ pub async fn get_user_by_plate(
     State(state): State<AppState>,
     Query(params): Query<GetUserByPlateQuery>,
 ) -> AppResult<Json<Option<PublicUserInfo>>> {
-    let user_info = state.user_service.get_user_by_plate(
-        &params.plate,
-        &state.user_repository,
-        &state.user_plate_repository,
-    ).await?;
-    
+    let user_info = state
+        .user_service
+        .get_user_by_plate(
+            &params.plate,
+            &state.user_repository,
+            &state.user_plate_repository,
+        )
+        .await?;
+
     Ok(Json(user_info))
 }
 
@@ -148,7 +162,9 @@ pub async fn register_push_token(
     let user_id = auth_state.user_id;
     let token = payload.token.trim();
     if token.is_empty() {
-        return Err(crate::error::AppError::Validation("Пустой push token".into()));
+        return Err(crate::error::AppError::Validation(
+            "Пустой push token".into(),
+        ));
     }
 
     // Обновляем только токен
@@ -168,4 +184,3 @@ pub async fn register_push_token(
     state.user_repository.update(user_id, &update).await?;
     Ok(Json(serde_json::json!({"message": "push token saved"})))
 }
-

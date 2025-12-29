@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json::json;
 use sqlx::FromRow;
-use uuid::Uuid;
 use utoipa::ToSchema;
+use uuid::Uuid;
 use validator::Validate;
 
 use crate::utils::normalize_plate;
@@ -32,7 +32,11 @@ pub struct Block {
 }))]
 pub struct CreateBlockRequest {
     /// Номер автомобиля, который блокируется
-    #[validate(length(min = 8, max = 9, message = "Номер автомобиля должен быть от 8 до 9 символов"))]
+    #[validate(length(
+        min = 8,
+        max = 9,
+        message = "Номер автомобиля должен быть от 8 до 9 символов"
+    ))]
     #[schema(example = "А123БВ777")]
     pub blocked_plate: String,
     /// Уведомить ли владельца (позвонить)
@@ -88,4 +92,3 @@ impl CreateBlockRequest {
         self.blocked_plate = normalize_plate(&self.blocked_plate);
     }
 }
-

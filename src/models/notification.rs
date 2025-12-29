@@ -30,4 +30,3 @@ pub struct NotificationResponse {
 pub struct MarkNotificationReadRequest {
     pub read: bool,
 }
-

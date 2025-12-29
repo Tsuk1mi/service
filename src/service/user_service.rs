@@ -1,10 +1,10 @@
-use uuid::Uuid;
 use crate::error::{AppError, AppResult};
 use crate::models::user::{UpdateUserRequest, UserResponse};
-use crate::repository::{UserRepository, UserPlateRepository, UpdateUserData};
+use crate::repository::{UpdateUserData, UserPlateRepository, UserRepository};
 use crate::service::validation_service::ValidationService;
 use crate::utils::encryption::Encryption;
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
+use uuid::Uuid;
 
 /// Сервис работы с пользователями (SRP)
 #[derive(Clone)]
@@ -31,18 +31,24 @@ impl UserService {
         user_plate_repository: &RP,
     ) -> AppResult<UserResponse> {
         tracing::info!("get_profile called for user_id: {}", user_id);
-        let mut user = repository.find_by_id(user_id).await?
-            .ok_or_else(|| {
-                tracing::error!("User not found: {}", user_id);
-                AppError::NotFound("User not found".to_string())
-            })?;
+        let mut user = repository.find_by_id(user_id).await?.ok_or_else(|| {
+            tracing::error!("User not found: {}", user_id);
+            AppError::NotFound("User not found".to_string())
+        })?;
         tracing::info!("User found: {} (plate: {:?})", user_id, user.plate);
 
         // Получаем актуальный основной номер из user_plates (источник истины)
-        if let Ok(Some(primary_plate)) = user_plate_repository.find_primary_by_user_id(user_id).await {
+        if let Ok(Some(primary_plate)) =
+            user_plate_repository.find_primary_by_user_id(user_id).await
+        {
             // Синхронизируем номер пользователя из основного автомобиля
             if user.plate.as_ref().map(|p| p.as_str()) != Some(primary_plate.plate.as_str()) {
-                tracing::info!("Syncing user {} plate from user_plates: {:?} -> {}", user_id, user.plate, primary_plate.plate);
+                tracing::info!(
+                    "Syncing user {} plate from user_plates: {:?} -> {}",
+                    user_id,
+                    user.plate,
+                    primary_plate.plate
+                );
                 // Обновляем номер в users для обратной совместимости
                 let update_data = UpdateUserData {
                     name: None,
@@ -63,29 +69,44 @@ impl UserService {
         } else {
             // Если нет основного автомобиля, создаем его из users.plate (если номер есть и валиден)
             if let Some(ref plate) = user.plate {
-                tracing::info!("No primary plate found for user {}, creating from users.plate: {}", user_id, plate);
+                tracing::info!(
+                    "No primary plate found for user {}, creating from users.plate: {}",
+                    user_id,
+                    plate
+                );
                 let normalized_plate = crate::utils::normalize_plate(plate);
-                
+
                 // Проверяем валидность номера перед созданием
                 if !normalized_plate.is_empty() {
-                        match user_plate_repository.create(user_id, &normalized_plate, true, None).await {
+                    match user_plate_repository
+                        .create(user_id, &normalized_plate, true, None)
+                        .await
+                    {
                         Ok(_) => {
                             tracing::info!("Primary plate created successfully from users.plate");
-                        },
+                        }
                         Err(e) => {
-                            tracing::warn!("Failed to create primary plate from users.plate: {:?}", e);
+                            tracing::warn!(
+                                "Failed to create primary plate from users.plate: {:?}",
+                                e
+                            );
                             // Продолжаем выполнение, даже если не удалось создать primary_plate
                         }
                     }
                 } else {
-                    tracing::warn!("User {} has invalid plate in users.plate, skipping primary plate creation", user_id);
+                    tracing::warn!(
+                        "User {} has invalid plate in users.plate, skipping primary plate creation",
+                        user_id
+                    );
                 }
             } else {
                 tracing::info!("No primary plate found for user {} and users.plate is empty - user should add plate later", user_id);
             }
         }
 
-        let phone_decrypted = user.phone_encrypted.as_ref()
+        let phone_decrypted = user
+            .phone_encrypted
+            .as_ref()
             .and_then(|enc| self.encryption.decrypt(enc).ok());
 
         Ok(user.to_response(phone_decrypted))
@@ -99,8 +120,9 @@ impl UserService {
         repository: &R,
         user_plate_repository: &RP,
     ) -> AppResult<UserResponse> {
-        tracing::info!("update_profile called for user {}: name={:?}, phone={:?}, telegram={:?}, plate={:?}, owner_type={:?}, owner_info={:?}", 
-            user_id, 
+        tracing::info!(
+            "update_profile called for user {}: name={:?}, phone={:?}, telegram={:?}, plate={:?}, owner_type={:?}, owner_info={:?}",
+            user_id,
             request.name.as_ref().map(|s| if s.is_empty() { "<empty>" } else { s.as_str() }),
             request.phone.as_ref().map(|_| "<present>"),
             request.telegram.as_ref().map(|s| if s.is_empty() { "<empty>" } else { s.as_str() }),
@@ -108,26 +130,30 @@ impl UserService {
             request.owner_type.as_ref().map(|s| s.as_str()),
             request.owner_info.is_some()
         );
-        
+
         // Валидация полей вручную (проверяем только непустые значения)
         if let Some(ref name) = request.name {
             if !name.is_empty() && (name.len() < 1 || name.len() > 20) {
-                return Err(AppError::Validation("Имя должно быть от 1 до 20 символов".to_string()));
+                return Err(AppError::Validation(
+                    "Имя должно быть от 1 до 20 символов".to_string(),
+                ));
             }
         }
-        
+
         if let Some(ref phone) = request.phone {
             if !phone.is_empty() {
                 ValidationService::validate_phone(phone)?;
             }
         }
-        
+
         if let Some(ref telegram) = request.telegram {
             if !telegram.is_empty() && telegram.len() > 32 {
-                return Err(AppError::Validation("Telegram username должен быть до 32 символов".to_string()));
+                return Err(AppError::Validation(
+                    "Telegram username должен быть до 32 символов".to_string(),
+                ));
             }
         }
-        
+
         if let Some(ref plate) = request.plate {
             if !plate.is_empty() {
                 ValidationService::validate_plate(plate)?;
@@ -137,7 +163,7 @@ impl UserService {
         // Нормализация данных
         let mut normalized_request = request;
         normalized_request.normalize();
-        
+
         // Преобразуем пустые строки в None для корректной обработки
         if let Some(ref name) = normalized_request.name {
             if name.is_empty() {
@@ -157,7 +183,9 @@ impl UserService {
 
         // Шифрование телефона если он обновляется
         let (phone_encrypted, phone_hash) = if let Some(phone) = normalized_request.phone {
-            let enc = self.encryption.encrypt(&phone)
+            let enc = self
+                .encryption
+                .encrypt(&phone)
                 .map_err(|e| AppError::Encryption(e.to_string()))?;
             let hash = Self::phone_hash(&phone);
             (Some(enc), Some(hash))
@@ -169,34 +197,58 @@ impl UserService {
         // Если plate передан - обновляем/создаем основной автомобиль
         if let Some(new_plate) = &normalized_request.plate {
             let normalized_plate = crate::utils::normalize_plate(new_plate);
-            
+
             // Находим текущий основной автомобиль
-            if let Ok(Some(primary_plate)) = user_plate_repository.find_primary_by_user_id(user_id).await {
+            if let Ok(Some(primary_plate)) =
+                user_plate_repository.find_primary_by_user_id(user_id).await
+            {
                 if primary_plate.plate != normalized_plate {
                     // Номер изменился - обновляем основной автомобиль
-                    tracing::info!("Syncing primary plate for user {}: {} -> {}", user_id, primary_plate.plate, normalized_plate);
-                    
+                    tracing::info!(
+                        "Syncing primary plate for user {}: {} -> {}",
+                        user_id,
+                        primary_plate.plate,
+                        normalized_plate
+                    );
+
                     // Проверяем, есть ли уже такой номер у пользователя
                     let existing_plates = user_plate_repository.find_by_user_id(user_id).await?;
-                    let existing_plate = existing_plates.iter().find(|p| p.plate == normalized_plate);
-                    
+                    let existing_plate =
+                        existing_plates.iter().find(|p| p.plate == normalized_plate);
+
                     if let Some(existing) = existing_plate {
                         // Номер уже существует - делаем его основным
-                        user_plate_repository.set_primary(existing.id, user_id).await?;
+                        user_plate_repository
+                            .set_primary(existing.id, user_id)
+                            .await?;
                     } else {
                         // Создаем новый номер как основной
-                        user_plate_repository.create(user_id, &normalized_plate, true, None).await?;
+                        user_plate_repository
+                            .create(user_id, &normalized_plate, true, None)
+                            .await?;
                     }
                 }
             } else {
                 // Нет основного автомобиля - создаем из переданного номера
-                tracing::info!("Creating primary plate for user {}: {}", user_id, normalized_plate);
-                user_plate_repository.create(user_id, &normalized_plate, true, None).await?;
+                tracing::info!(
+                    "Creating primary plate for user {}: {}",
+                    user_id,
+                    normalized_plate
+                );
+                user_plate_repository
+                    .create(user_id, &normalized_plate, true, None)
+                    .await?;
             }
         } else {
             // Если plate не передан, используем номер из основного автомобиля
-            if let Ok(Some(primary_plate)) = user_plate_repository.find_primary_by_user_id(user_id).await {
-                tracing::info!("No plate in request, using primary plate for user {}: {}", user_id, primary_plate.plate);
+            if let Ok(Some(primary_plate)) =
+                user_plate_repository.find_primary_by_user_id(user_id).await
+            {
+                tracing::info!(
+                    "No plate in request, using primary plate for user {}: {}",
+                    user_id,
+                    primary_plate.plate
+                );
                 normalized_request.plate = Some(primary_plate.plate.clone());
             }
         }
@@ -231,7 +283,9 @@ impl UserService {
         let updated_user = repository.update(user_id, &update_data).await?;
 
         // Расшифровка телефона для ответа
-        let phone_decrypted = updated_user.phone_encrypted.as_ref()
+        let phone_decrypted = updated_user
+            .phone_encrypted
+            .as_ref()
             .and_then(|enc| self.encryption.decrypt(enc).ok());
 
         Ok(updated_user.to_response(phone_decrypted))
@@ -245,21 +299,24 @@ impl UserService {
         user_plate_repository: &RP,
     ) -> AppResult<Option<crate::models::user::PublicUserInfo>> {
         let normalized_plate = ValidationService::validate_plate(plate)?;
-        
+
         // Находим пользователей, у которых этот номер в user_plates
-        let user_plates = user_plate_repository.find_by_plate(&normalized_plate).await?;
-        
+        let user_plates = user_plate_repository
+            .find_by_plate(&normalized_plate)
+            .await?;
+
         // Берем первого пользователя с этим номером (обычно он один)
         if let Some(user_plate) = user_plates.first() {
             if let Some(user) = repository.find_by_id(user_plate.user_id).await? {
-                let phone_decrypted = user.phone_encrypted.as_ref()
+                let phone_decrypted = user
+                    .phone_encrypted
+                    .as_ref()
                     .and_then(|enc| self.encryption.decrypt(enc).ok());
-                
+
                 return Ok(Some(user.to_public_info(phone_decrypted)));
             }
         }
-        
+
         Ok(None)
     }
 }
-

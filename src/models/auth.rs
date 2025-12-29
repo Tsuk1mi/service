@@ -75,4 +75,3 @@ pub struct RefreshTokenResponse {
     #[schema(value_type = String, format = "uuid", example = "550e8400-e29b-41d4-a716-446655440000")]
     pub user_id: uuid::Uuid,
 }
-

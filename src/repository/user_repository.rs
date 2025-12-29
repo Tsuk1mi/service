@@ -1,7 +1,7 @@
-use uuid::Uuid;
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
 use crate::models::user::User;
+use uuid::Uuid;
 
 /// Трейт для работы с пользователями в БД (DIP - Dependency Inversion Principle)
 #[async_trait::async_trait]
@@ -56,7 +56,7 @@ impl UserRepository for PostgresUserRepository {
             FROM users
             WHERE phone_hash = $1
             LIMIT 1
-            "#
+            "#,
         )
         .bind(phone_hash)
         .fetch_optional(&*self.db)
@@ -81,7 +81,11 @@ impl UserRepository for PostgresUserRepository {
         if user.is_none() {
             tracing::warn!("User not found in database: {}", id);
         } else {
-            tracing::debug!("User found: {} (plate: {:?})", id, user.as_ref().unwrap().plate.as_ref());
+            tracing::debug!(
+                "User found: {} (plate: {:?})",
+                id,
+                user.as_ref().unwrap().plate.as_ref()
+            );
         }
 
         Ok(user)
@@ -117,27 +121,45 @@ impl UserRepository for PostgresUserRepository {
 
     async fn update(&self, id: Uuid, update_data: &UpdateUserData) -> AppResult<User> {
         // Сначала получаем текущего пользователя
-        let current_user = self.find_by_id(id).await?
+        let current_user = self
+            .find_by_id(id)
+            .await?
             .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
 
         // Объединяем данные: если значение передано, используем его, иначе оставляем текущее
         // Для полей, которые могут быть явно null (пустые строки), обновляем их
         let name = if let Some(ref name) = update_data.name {
-            if name.is_empty() { None } else { Some(name.clone()) }
+            if name.is_empty() {
+                None
+            } else {
+                Some(name.clone())
+            }
         } else {
             current_user.name
         };
-        
+
         let telegram = if let Some(ref telegram) = update_data.telegram {
-            if telegram.is_empty() { None } else { Some(telegram.clone()) }
+            if telegram.is_empty() {
+                None
+            } else {
+                Some(telegram.clone())
+            }
         } else {
             current_user.telegram
         };
-        
-        let plate = update_data.plate.clone().or_else(|| current_user.plate.clone());
-        let show_contacts = update_data.show_contacts.unwrap_or(current_user.show_contacts);
-        let phone_encrypted = update_data.phone_encrypted.clone().or(current_user.phone_encrypted.clone());
-        
+
+        let plate = update_data
+            .plate
+            .clone()
+            .or_else(|| current_user.plate.clone());
+        let show_contacts = update_data
+            .show_contacts
+            .unwrap_or(current_user.show_contacts);
+        let phone_encrypted = update_data
+            .phone_encrypted
+            .clone()
+            .or(current_user.phone_encrypted.clone());
+
         // owner_type: если передано, используем, иначе оставляем текущее значение
         // НЕ используем дефолтное значение, чтобы не перезаписывать существующие данные
         let owner_type = if let Some(ref owner_type) = update_data.owner_type {
@@ -148,7 +170,7 @@ impl UserRepository for PostgresUserRepository {
             // Только если вообще нет значения, устанавливаем дефолт
             "renter".to_string()
         };
-        
+
         // Определяем owner_info:
         // 1. Если owner_type = "owner" - всегда null (очищаем)
         // 2. Если передан явно в update_data.owner_info - используем его
@@ -163,16 +185,25 @@ impl UserRepository for PostgresUserRepository {
             // Иначе сохраняем текущее значение owner_info
             current_user.owner_info.clone()
         };
-        
-        tracing::info!("Updating user {}: owner_type={}, owner_info={:?}", 
-            id, owner_type, owner_info_value.is_some());
-        
+
+        tracing::info!(
+            "Updating user {}: owner_type={}, owner_info={:?}",
+            id,
+            owner_type,
+            owner_info_value.is_some()
+        );
+
         // ВСЕГДА обновляем все поля, включая owner_info и departure_time
-        let departure_time = update_data.departure_time.clone()
+        let departure_time = update_data
+            .departure_time
+            .clone()
             .or_else(|| current_user.departure_time.clone());
-        
+
         // Используем RETURNING для избежания дополнительного SELECT
-        let phone_hash = update_data.phone_hash.clone().or(current_user.phone_hash.clone());
+        let phone_hash = update_data
+            .phone_hash
+            .clone()
+            .or(current_user.phone_hash.clone());
 
         let updated_user = sqlx::query_as::<_, User>(
             r#"
@@ -191,7 +222,7 @@ impl UserRepository for PostgresUserRepository {
             WHERE id = $11
             RETURNING id, phone_encrypted, phone_hash, telegram, plate, name, show_contacts, 
                       owner_type, owner_info, departure_time, push_token, created_at, updated_at
-            "#
+            "#,
         )
         .bind(name.as_ref())
         .bind(telegram.as_ref())
@@ -218,7 +249,7 @@ impl UserRepository for PostgresUserRepository {
         let result: Option<(String,)> = sqlx::query_as(
             r#"
             SELECT plate FROM users WHERE id = $1
-            "#
+            "#,
         )
         .bind(id)
         .fetch_optional(&*self.db)
@@ -227,4 +258,3 @@ impl UserRepository for PostgresUserRepository {
         Ok(result.map(|r| r.0))
     }
 }
-

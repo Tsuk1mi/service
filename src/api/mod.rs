@@ -1,23 +1,26 @@
 pub mod auth;
-pub mod user;
 pub mod block;
-pub mod server_info;
-pub mod ocr;
-pub mod user_plate;
 pub mod notification;
+pub mod ocr;
+pub mod server_info;
+pub mod user;
+pub mod user_plate;
 
 pub use auth::*;
-pub use user::*;
 pub use block::*;
-pub use server_info::*;
-pub use ocr::*;
-pub use user_plate::*;
 pub use notification::*;
+pub use ocr::*;
+pub use server_info::*;
+pub use user::*;
+pub use user_plate::*;
 
 use crate::auth::sms::SmsService;
 use crate::config::Config;
-use crate::repository::{PostgresUserRepository, PostgresBlockRepository, PostgresUserPlateRepository, PostgresNotificationRepository};
-use crate::service::{AuthService, UserService, BlockService, TelephonyService, PushService};
+use crate::repository::{
+    PostgresBlockRepository, PostgresNotificationRepository, PostgresUserPlateRepository,
+    PostgresUserRepository,
+};
+use crate::service::{AuthService, BlockService, PushService, TelephonyService, UserService};
 use crate::utils::encryption::Encryption;
 
 #[derive(Clone)]
@@ -35,4 +38,3 @@ pub struct AppState {
     pub user_plate_repository: PostgresUserPlateRepository,
     pub notification_repository: PostgresNotificationRepository,
 }
-

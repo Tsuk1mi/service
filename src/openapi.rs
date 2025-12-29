@@ -78,11 +78,10 @@ impl Modify for SecurityAddon {
                         .build(),
                 ),
             );
-            
+
             // Добавляем схему для UUID (если нужна явная схема)
             // В utoipa 4.x UUID автоматически преобразуется в String с format = "uuid"
             // через аннотации #[schema(value_type = String, format = "uuid")]
         }
     }
 }
-

@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json::json;
 use sqlx::FromRow;
-use uuid::Uuid;
 use utoipa::ToSchema;
+use uuid::Uuid;
 use validator::Validate;
 
 use crate::utils::{normalize_phone, normalize_plate};
@@ -41,20 +41,20 @@ pub struct User {
 pub struct CreateUserRequest {
     #[validate(length(min = 1, max = 20, message = "Имя должно быть от 1 до 20 символов"))]
     pub name: Option<String>,
-    
+
     pub phone: Option<String>,
-    
+
     #[validate(length(max = 32, message = "Telegram username должен быть до 32 символов"))]
     pub telegram: Option<String>,
-    
+
     pub plate: String,
-    
+
     #[serde(default)]
     pub show_contacts: bool,
-    
+
     #[serde(default)]
     pub owner_type: Option<String>, // "owner" или "renter"
-    
+
     pub owner_info: Option<serde_json::Value>, // Информация о собственнике
 }
 
@@ -173,8 +173,16 @@ impl User {
             id: self.id,
             name: self.name.clone(),
             plate: self.plate.clone().unwrap_or_default(),
-            phone: if self.show_contacts { phone_decrypted } else { None },
-            telegram: if self.show_contacts { self.telegram.clone() } else { None },
+            phone: if self.show_contacts {
+                phone_decrypted
+            } else {
+                None
+            },
+            telegram: if self.show_contacts {
+                self.telegram.clone()
+            } else {
+                None
+            },
             departure_time: self.departure_time.map(|t| t.format("%H:%M").to_string()),
         }
     }
@@ -205,4 +213,3 @@ impl UpdateUserRequest {
         }
     }
 }
-

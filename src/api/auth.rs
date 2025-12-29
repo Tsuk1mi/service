@@ -6,7 +6,10 @@ use axum::{
 
 use crate::api::AppState;
 use crate::error::AppResult;
-use crate::models::auth::{AuthStartRequest, AuthStartResponse, AuthVerifyRequest, AuthVerifyResponse, RefreshTokenRequest, RefreshTokenResponse};
+use crate::models::auth::{
+    AuthStartRequest, AuthStartResponse, AuthVerifyRequest, AuthVerifyResponse,
+    RefreshTokenRequest, RefreshTokenResponse,
+};
 
 pub fn auth_router() -> Router<AppState> {
     Router::new()
@@ -50,12 +53,15 @@ pub async fn verify_auth(
     State(state): State<AppState>,
     Json(payload): Json<AuthVerifyRequest>,
 ) -> AppResult<Json<AuthVerifyResponse>> {
-    let response = state.auth_service.verify_auth(
-        &payload.phone,
-        &payload.code,
-        &state.user_repository,
-        &state.user_plate_repository,
-    ).await?;
+    let response = state
+        .auth_service
+        .verify_auth(
+            &payload.phone,
+            &payload.code,
+            &state.user_repository,
+            &state.user_plate_repository,
+        )
+        .await?;
     Ok(Json(response))
 }
 
@@ -77,4 +83,3 @@ pub async fn refresh_token(
     let response = state.auth_service.refresh_token(&payload.token).await?;
     Ok(Json(response))
 }
-

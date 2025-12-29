@@ -1,10 +1,11 @@
-pub mod user_repository;
 pub mod block_repository;
-pub mod user_plate_repository;
 pub mod notification_repository;
+pub mod user_plate_repository;
+pub mod user_repository;
 
-pub use user_repository::{UserRepository, PostgresUserRepository, CreateUserData, UpdateUserData};
 pub use block_repository::{BlockRepository, PostgresBlockRepository};
-pub use user_plate_repository::{UserPlateRepository, PostgresUserPlateRepository};
-pub use notification_repository::{NotificationRepository, PostgresNotificationRepository, CreateNotificationData};
-
+pub use notification_repository::{
+    CreateNotificationData, NotificationRepository, PostgresNotificationRepository,
+};
+pub use user_plate_repository::{PostgresUserPlateRepository, UserPlateRepository};
+pub use user_repository::{CreateUserData, PostgresUserRepository, UpdateUserData, UserRepository};

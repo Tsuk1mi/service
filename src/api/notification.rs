@@ -32,7 +32,10 @@ async fn get_notifications(
     let user_id = auth_state.user_id;
     let unread_only = params.unread_only.unwrap_or(false);
 
-    let notifications = state.notification_repository.find_by_user_id(user_id, unread_only).await?;
+    let notifications = state
+        .notification_repository
+        .find_by_user_id(user_id, unread_only)
+        .await?;
 
     let responses: Vec<NotificationResponse> = notifications
         .into_iter()
@@ -57,9 +60,14 @@ async fn mark_notification_read(
 ) -> AppResult<Json<serde_json::Value>> {
     let user_id = auth_state.user_id;
 
-    state.notification_repository.mark_as_read(notification_id, user_id).await?;
+    state
+        .notification_repository
+        .mark_as_read(notification_id, user_id)
+        .await?;
 
-    Ok(Json(serde_json::json!({ "message": "Notification marked as read" })))
+    Ok(Json(
+        serde_json::json!({ "message": "Notification marked as read" }),
+    ))
 }
 
 async fn mark_all_read(
@@ -68,8 +76,12 @@ async fn mark_all_read(
 ) -> AppResult<Json<serde_json::Value>> {
     let user_id = auth_state.user_id;
 
-    state.notification_repository.mark_all_as_read(user_id).await?;
+    state
+        .notification_repository
+        .mark_all_as_read(user_id)
+        .await?;
 
-    Ok(Json(serde_json::json!({ "message": "All notifications marked as read" })))
+    Ok(Json(
+        serde_json::json!({ "message": "All notifications marked as read" }),
+    ))
 }
-

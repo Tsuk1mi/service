@@ -1,5 +1,5 @@
-use chrono::{DateTime, Utc};
 use chrono::NaiveTime;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
@@ -20,7 +20,11 @@ pub struct UserPlate {
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateUserPlateRequest {
-    #[validate(length(min = 8, max = 9, message = "Номер автомобиля должен быть от 8 до 9 символов"))]
+    #[validate(length(
+        min = 8,
+        max = 9,
+        message = "Номер автомобиля должен быть от 8 до 9 символов"
+    ))]
     pub plate: String,
     pub is_primary: Option<bool>,
     pub departure_time: Option<String>,
@@ -61,4 +65,3 @@ impl CreateUserPlateRequest {
         self.plate = normalize_plate(&self.plate);
     }
 }
-

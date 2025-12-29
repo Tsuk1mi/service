@@ -1,19 +1,30 @@
-use uuid::Uuid;
 use crate::db::DbPool;
 use crate::error::AppResult;
 use crate::models::user_plate::UserPlate;
+use uuid::Uuid;
 
 /// Трейт для работы с автомобилями пользователя (DIP)
 #[async_trait::async_trait]
 pub trait UserPlateRepository: Send + Sync {
-    async fn create(&self, user_id: Uuid, plate: &str, is_primary: bool, departure_time: Option<chrono::NaiveTime>) -> AppResult<UserPlate>;
+    async fn create(
+        &self,
+        user_id: Uuid,
+        plate: &str,
+        is_primary: bool,
+        departure_time: Option<chrono::NaiveTime>,
+    ) -> AppResult<UserPlate>;
     async fn find_by_user_id(&self, user_id: Uuid) -> AppResult<Vec<UserPlate>>;
     async fn find_primary_by_user_id(&self, user_id: Uuid) -> AppResult<Option<UserPlate>>;
     async fn find_by_plate(&self, plate: &str) -> AppResult<Vec<UserPlate>>;
     async fn delete(&self, id: Uuid, user_id: Uuid) -> AppResult<()>;
     async fn set_primary(&self, id: Uuid, user_id: Uuid) -> AppResult<()>;
     async fn find_by_id(&self, id: Uuid) -> AppResult<Option<UserPlate>>;
-    async fn update_departure_time(&self, id: Uuid, user_id: Uuid, time: Option<chrono::NaiveTime>) -> AppResult<UserPlate>;
+    async fn update_departure_time(
+        &self,
+        id: Uuid,
+        user_id: Uuid,
+        time: Option<chrono::NaiveTime>,
+    ) -> AppResult<UserPlate>;
 }
 
 /// Реализация репозитория автомобилей пользователя
@@ -30,7 +41,13 @@ impl PostgresUserPlateRepository {
 
 #[async_trait::async_trait]
 impl UserPlateRepository for PostgresUserPlateRepository {
-    async fn create(&self, user_id: Uuid, plate: &str, is_primary: bool, departure_time: Option<chrono::NaiveTime>) -> AppResult<UserPlate> {
+    async fn create(
+        &self,
+        user_id: Uuid,
+        plate: &str,
+        is_primary: bool,
+        departure_time: Option<chrono::NaiveTime>,
+    ) -> AppResult<UserPlate> {
         let plate_id = uuid::Uuid::new_v4();
 
         // Если это основной автомобиль, убираем флаг is_primary у других автомобилей
@@ -41,7 +58,7 @@ impl UserPlateRepository for PostgresUserPlateRepository {
                 UPDATE user_plates
                 SET is_primary = false, updated_at = NOW()
                 WHERE user_id = $1 AND is_primary = true
-                "#
+                "#,
             )
             .bind(user_id)
             .execute(&*self.db)
@@ -204,14 +221,19 @@ impl UserPlateRepository for PostgresUserPlateRepository {
         Ok(plate)
     }
 
-    async fn update_departure_time(&self, id: Uuid, user_id: Uuid, time: Option<chrono::NaiveTime>) -> AppResult<UserPlate> {
+    async fn update_departure_time(
+        &self,
+        id: Uuid,
+        user_id: Uuid,
+        time: Option<chrono::NaiveTime>,
+    ) -> AppResult<UserPlate> {
         let plate = sqlx::query_as::<_, UserPlate>(
             r#"
             UPDATE user_plates
             SET departure_time = $1, updated_at = NOW()
             WHERE id = $2 AND user_id = $3
             RETURNING id, user_id, plate, is_primary, departure_time, created_at, updated_at
-            "#
+            "#,
         )
         .bind(time)
         .bind(id)
