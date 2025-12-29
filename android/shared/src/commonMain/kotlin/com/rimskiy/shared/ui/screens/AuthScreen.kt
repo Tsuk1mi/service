@@ -279,17 +279,6 @@ fun AuthScreen(
                         Text("Отправить код")
                     }
 
-                    TextButton(
-                        onClick = {
-                        val (host, port) = splitHostPort(currentBaseUrl)
-                        serverIp = host
-                        serverPort = port
-                            showServerDialog = true
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Сменить сервер")
-                    }
                 } else {
                     // Ввод кода
                     Row(
