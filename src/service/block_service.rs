@@ -59,6 +59,23 @@ impl BlockService {
             })?;
         tracing::debug!("Validated plate: {}", normalized_plate);
 
+        // Запрещаем взаимные блокировки (нельзя перекрыть собственный авто)
+        if let Ok(Some(primary_plate)) = user_plate_repository
+            .find_primary_by_user_id(blocker_id)
+            .await
+        {
+            if primary_plate.plate.eq_ignore_ascii_case(&normalized_plate) {
+                tracing::warn!(
+                    "User {} attempted to block their own plate {}, blocking denied",
+                    blocker_id,
+                    normalized_plate
+                );
+                return Err(AppError::Validation(
+                    "Нельзя перекрыть свой же автомобиль".to_string(),
+                ));
+            }
+        }
+
         tracing::info!(
             "Creating block for user {} and plate {}",
             blocker_id,
@@ -325,11 +342,19 @@ impl BlockService {
     }
 
     /// Удаляет блокировку (только если пользователь является её создателем)
-    pub async fn delete_block<BR: BlockRepository>(
+    pub async fn delete_block<
+        BR: BlockRepository,
+        NR: NotificationRepository,
+        UR: UserRepository,
+        UPR: UserPlateRepository,
+    >(
         &self,
         block_id: Uuid,
         blocker_id: Uuid,
         block_repository: &BR,
+        notification_repository: &NR,
+        user_repository: &UR,
+        user_plate_repository: &UPR,
     ) -> AppResult<()> {
         // Проверяем, что блокировка существует и принадлежит пользователю
         let block = block_repository
@@ -343,7 +368,79 @@ impl BlockService {
             ));
         }
 
-        block_repository.delete(block_id, blocker_id).await
+        // Выполняем удаление
+        block_repository.delete(block_id, blocker_id).await?;
+
+        // Рассылаем уведомления и пуш владельцам, чьи машины были разблокированы
+        let blocked_plate = block.blocked_plate.clone();
+
+        // Имя блокировщика для сообщения
+        let blocker_name = user_repository
+            .find_by_id(blocker_id)
+            .await?
+            .and_then(|u| u.name)
+            .unwrap_or_else(|| "Неизвестно".to_string());
+
+        // Находим всех владельцев номера
+        if let Ok(user_plates) = user_plate_repository.find_by_plate(&blocked_plate).await {
+            let mut notified_users = std::collections::HashSet::new();
+
+            for user_plate in user_plates {
+                let user_id = user_plate.user_id;
+
+                // Не уведомляем самого блокировщика и избегаем дубликатов
+                if user_id == blocker_id || notified_users.contains(&user_id) {
+                    continue;
+                }
+                notified_users.insert(user_id);
+
+                if let Some(owner_user) = user_repository.find_by_id(user_id).await? {
+                    // Сохраняем уведомление в БД
+                    let _ = notification_repository
+                        .create(&CreateNotificationData {
+                            user_id,
+                            r#type: "unblock".to_string(),
+                            title: "Автомобиль разблокирован".to_string(),
+                            message: format!(
+                                "Автомобиль {} разблокирован пользователем {}",
+                                blocked_plate, blocker_name
+                            ),
+                            data: Some(serde_json::json!({
+                                "block_id": block_id,
+                                "blocked_plate": blocked_plate,
+                                "blocker_id": blocker_id,
+                                "blocker_name": blocker_name,
+                                "status": "unblocked"
+                            })),
+                        })
+                        .await
+                        .map_err(|e| {
+                            tracing::error!("Failed to create unblock notification: {:?}", e)
+                        });
+
+                    // Пуш-уведомление через FCM, если есть токен
+                    if let Some(push_token) = owner_user.push_token.clone() {
+                        let title = "Ваш авто разблокирован";
+                        let body =
+                            format!("{} больше не перекрывает {}.", blocker_name, blocked_plate);
+                        let data = serde_json::json!({
+                            "block_id": block_id.to_string(),
+                            "blocked_plate": blocked_plate,
+                            "blocker_name": blocker_name,
+                            "status": "unblocked"
+                        });
+                        let push = self.push_service.clone();
+                        tokio::spawn(async move {
+                            if let Err(e) = push.send_fcm(&push_token, title, &body, data).await {
+                                tracing::warn!("Failed to send FCM push (unblock): {}", e);
+                            }
+                        });
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 
     /// Проверяет, заблокирована ли машина

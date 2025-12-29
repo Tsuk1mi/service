@@ -22,6 +22,7 @@ sealed class Screen {
     object MyBlocks : Screen()
     object BlockedBy : Screen()
     object BlockNotification : Screen()
+    object About : Screen()
     data class BlockNotificationDetails(val block: com.rimskiy.shared.data.model.BlockWithBlockerInfo) : Screen()
 }
 
@@ -250,6 +251,9 @@ fun AppNavigation(
                         is Screen.Home -> {
                             key(Screen.Home, screenRefreshKey) {
                                 HomeScreen(
+                                    appVersion = appVersion,
+                                    minRequiredVersion = minRequiredVersion,
+                                    downloadUrl = downloadUrl,
                                     onNavigateToProfile = {
                                         currentScreen = Screen.Profile
                                         selectedBottomNavItem = BottomNavItem.Profile
@@ -265,6 +269,9 @@ fun AppNavigation(
                                     onNavigateToNotifications = {
                                         currentScreen = Screen.BlockNotification
                                         selectedBottomNavItem = BottomNavItem.Notifications
+                                    },
+                                    onNavigateToAbout = {
+                                        currentScreen = Screen.About
                                     }
                                 )
                             }
@@ -351,6 +358,18 @@ fun AppNavigation(
                                     screenRefreshKey = screenRefreshKey
                                 )
                             }
+                        }
+                        is Screen.About -> {
+                            AboutScreen(
+                                appVersion = appVersion,
+                                minRequiredVersion = minRequiredVersion,
+                                downloadUrl = downloadUrl,
+                                currentBaseUrl = currentBaseUrl,
+                                onBack = {
+                                    currentScreen = Screen.Home
+                                    selectedBottomNavItem = BottomNavItem.Home
+                                }
+                            )
                         }
                         else -> {}
                     }

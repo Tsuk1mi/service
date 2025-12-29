@@ -22,8 +22,9 @@ impl Config {
     pub fn from_env() -> Result<Self> {
         let database_url = env::var("DATABASE_URL").context("DATABASE_URL is required")?;
         let jwt_secret = env::var("JWT_SECRET").context("JWT_SECRET is required")?;
+        // Срок жизни JWT: по умолчанию 7 дней (10080 минут)
         let jwt_expiration_minutes = env::var("JWT_EXPIRATION_MINUTES")
-            .unwrap_or_else(|_| "3".to_string())
+            .unwrap_or_else(|_| "10080".to_string())
             .parse()
             .context("JWT_EXPIRATION_MINUTES must be a valid number")?;
 

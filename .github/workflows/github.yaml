@@ -49,6 +49,44 @@ jobs:
           name: backend-release
           path: target/release/rimskiy_service
 
+  deploy-backend:
+    name: Deploy Backend to Server
+    runs-on: ubuntu-latest
+    needs: backend
+    if: ${{ vars.BACKEND_DEPLOY_HOST != '' && vars.BACKEND_DEPLOY_USER != '' && secrets.BACKEND_DEPLOY_KEY != '' }}
+    env:
+      HOST: ${{ vars.BACKEND_DEPLOY_HOST }}
+      USER: ${{ vars.BACKEND_DEPLOY_USER }}
+      SSH_KEY: ${{ secrets.BACKEND_DEPLOY_KEY }}
+      DEST: ${{ vars.BACKEND_DEPLOY_PATH || '/opt/rimskiy-service' }}
+      SERVICE_NAME: ${{ vars.BACKEND_SERVICE_NAME || 'rimskiy-service' }}
+    steps:
+      - name: Checkout (empty)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Download backend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-release
+          path: artifacts/
+
+      - name: Prepare SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan "$HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload binary and restart service
+        run: |
+          mkdir -p "$DEST"
+          # scp binary to server
+          scp artifacts/rimskiy_service "$USER@$HOST:/tmp/rimskiy_service"
+          # place binary and restart service
+          ssh "$USER@$HOST" "sudo mkdir -p $DEST && sudo mv /tmp/rimskiy_service $DEST/rimskiy_service && sudo chmod +x $DEST/rimskiy_service && sudo systemctl restart $SERVICE_NAME"
+
   android:
     name: Android (assembleRelease + deploy)
     runs-on: ubuntu-latest

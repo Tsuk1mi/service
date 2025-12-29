@@ -44,7 +44,9 @@ pub fn create_token(user_id: Uuid, config: &Config) -> AppResult<String> {
 
 pub fn verify_token(token: &str, config: &Config) -> AppResult<Claims> {
     let key = DecodingKey::from_secret(config.jwt_secret.as_ref());
-    let validation = Validation::default();
+    let mut validation = Validation::default();
+    // Не позволяем использовать токен с истекшим сроком жизни
+    validation.validate_exp = true;
 
     decode::<Claims>(token, &key, &validation)
         .map(|data| data.claims)

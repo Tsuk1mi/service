@@ -17,6 +17,9 @@ pub struct Block {
     /// ID пользователя, который создал блокировку
     #[schema(value_type = String, format = "uuid", example = "550e8400-e29b-41d4-a716-446655440000")]
     pub blocker_id: Uuid,
+    /// Номер авто блокирующего (для совместных владельцев)
+    #[schema(example = "А777ВС178")]
+    pub blocker_plate: String,
     /// Номер заблокированного автомобиля
     #[schema(example = "А123БВ777")]
     pub blocked_plate: String,
