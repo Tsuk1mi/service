@@ -193,13 +193,13 @@ fun BlockedByScreen(
                                             style = MaterialTheme.typography.titleMedium,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
-                                        Text(
+                                            Text(
                                             text = "Номер: ${block.blocked_plate}",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
                                     }
-                                }
 
                                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                     AssistChip(
@@ -221,7 +221,7 @@ fun BlockedByScreen(
                                     }
                                 }
 
-                                block.blocker.departure_time?.let { time ->
+                                    block.blocker.departure_time?.let { time ->
                                     Card(
                                         modifier = Modifier.fillMaxWidth(),
                                         colors = CardDefaults.cardColors(
@@ -248,14 +248,14 @@ fun BlockedByScreen(
                                                     style = MaterialTheme.typography.labelMedium,
                                                     color = MaterialTheme.colorScheme.onPrimaryContainer
                                                 )
-                                                Text(
+                                            Text(
                                                     text = time,
                                                     style = MaterialTheme.typography.titleMedium,
                                                     color = MaterialTheme.colorScheme.onPrimaryContainer
-                                                )
-                                            }
+                                            )
                                         }
                                     }
+                                }
                                 }
 
                                 if (block.blocker.phone != null || block.blocker.telegram != null) {

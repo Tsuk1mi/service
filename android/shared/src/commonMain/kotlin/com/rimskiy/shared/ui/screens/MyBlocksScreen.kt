@@ -551,7 +551,7 @@ fun MyBlocksScreen(
                                         )
                                     }
                                 }
-
+                                
                                 Divider()
 
                                 Row(
@@ -570,7 +570,7 @@ fun MyBlocksScreen(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
-
+                                
                                 OutlinedButton(
                                     onClick = {
                                         scope.launch {

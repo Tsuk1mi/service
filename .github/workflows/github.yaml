@@ -79,7 +79,8 @@ jobs:
             ${{ runner.os }}-gradle-
 
       - name: Make Gradle executable
-        run: chmod +x android/gradlew
+        working-directory: android
+        run: chmod +x gradlew
 
       - name: Decode keystore
         working-directory: android/app
