@@ -53,18 +53,23 @@ jobs:
     name: Deploy Backend to Server
     runs-on: ubuntu-latest
     needs: backend
-    if: ${{ vars.BACKEND_DEPLOY_HOST != '' && vars.BACKEND_DEPLOY_USER != '' && secrets.BACKEND_DEPLOY_KEY != '' }}
     env:
       HOST: ${{ vars.BACKEND_DEPLOY_HOST }}
       USER: ${{ vars.BACKEND_DEPLOY_USER }}
       SSH_KEY: ${{ secrets.BACKEND_DEPLOY_KEY }}
-      DEST: ${{ vars.BACKEND_DEPLOY_PATH || '/opt/rimskiy-service' }}
-      SERVICE_NAME: ${{ vars.BACKEND_SERVICE_NAME || 'rimskiy-service' }}
+      DEST: ${{ vars.BACKEND_DEPLOY_PATH }}
+      SERVICE_NAME: ${{ vars.BACKEND_SERVICE_NAME }}
     steps:
       - name: Checkout (empty)
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
+
+      - name: Skip if deploy variables are missing
+        if: ${{ env.HOST == '' || env.USER == '' || env.SSH_KEY == '' }}
+        run: |
+          echo "Skip deploy: HOST/USER/SSH_KEY not set"
+          exit 0
 
       - name: Download backend artifact
         uses: actions/download-artifact@v4
@@ -81,11 +86,13 @@ jobs:
 
       - name: Upload binary and restart service
         run: |
-          mkdir -p "$DEST"
+          DEST_PATH=${DEST:-/opt/rimskiy-service}
+          SERVICE=${SERVICE_NAME:-rimskiy-service}
+          mkdir -p "$DEST_PATH"
           # scp binary to server
           scp artifacts/rimskiy_service "$USER@$HOST:/tmp/rimskiy_service"
           # place binary and restart service
-          ssh "$USER@$HOST" "sudo mkdir -p $DEST && sudo mv /tmp/rimskiy_service $DEST/rimskiy_service && sudo chmod +x $DEST/rimskiy_service && sudo systemctl restart $SERVICE_NAME"
+          ssh "$USER@$HOST" "sudo mkdir -p $DEST_PATH && sudo mv /tmp/rimskiy_service $DEST_PATH/rimskiy_service && sudo chmod +x $DEST_PATH/rimskiy_service && sudo systemctl restart $SERVICE"
 
   android:
     name: Android (assembleRelease + deploy)
