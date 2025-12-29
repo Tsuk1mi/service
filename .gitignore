@@ -1,1 +1,31 @@
 /target
+
+# IDE
+.idea/
+*.iml
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Environment / secrets
+.env
+.env.*
+
+# Rust
+target/
+
+# Android / Gradle
+android/.gradle/
+android/.idea/
+android/local.properties
+android/.cxx/
+android/build/
+android/app/build/
+android/app/release-keystore.jks
+android/app/release-keystore.jks.b64
+android/app/*.apk
+
+# Logs / temp
+*.log
+tmp/
