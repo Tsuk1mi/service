@@ -15,10 +15,10 @@ pub trait BlockRepository: Send + Sync {
     async fn find_by_blocker_id(&self, blocker_id: Uuid) -> AppResult<Vec<Block>>;
     async fn find_by_blocker_plates(&self, plates: &[String]) -> AppResult<Vec<Block>>;
     async fn find_by_blocked_plate(&self, blocked_plate: &str) -> AppResult<Vec<Block>>;
-    async fn delete(&self, block_id: Uuid, blocker_id: Uuid) -> AppResult<()>;
+    async fn delete(&self, block_id: Uuid, blocker_plate: &str) -> AppResult<()>;
     async fn find_by_id(&self, block_id: Uuid) -> AppResult<Option<Block>>;
-    /// Проверяет существование блокировки (оптимизированная проверка дубликатов)
-    async fn exists(&self, blocker_id: Uuid, blocked_plate: &str) -> AppResult<bool>;
+    /// Проверяет существование блокировки по номерам (оптимизированная проверка дубликатов)
+    async fn exists(&self, blocker_plate: &str, blocked_plate: &str) -> AppResult<bool>;
 }
 
 /// Реализация репозитория блокировок
@@ -129,15 +129,15 @@ impl BlockRepository for PostgresBlockRepository {
         Ok(block)
     }
 
-    async fn delete(&self, block_id: Uuid, blocker_id: Uuid) -> AppResult<()> {
+    async fn delete(&self, block_id: Uuid, blocker_plate: &str) -> AppResult<()> {
         let result = sqlx::query(
             r#"
             DELETE FROM blocks
-            WHERE id = $1 AND blocker_id = $2
+            WHERE id = $1 AND UPPER(TRIM(blocker_plate)) = UPPER(TRIM($2))
             "#,
         )
         .bind(block_id)
-        .bind(blocker_id)
+        .bind(blocker_plate)
         .execute(&*self.db)
         .await?;
 
@@ -150,19 +150,20 @@ impl BlockRepository for PostgresBlockRepository {
         Ok(())
     }
 
-    async fn exists(&self, blocker_id: Uuid, blocked_plate: &str) -> AppResult<bool> {
+    async fn exists(&self, blocker_plate: &str, blocked_plate: &str) -> AppResult<bool> {
         // Оптимизированная проверка существования с использованием EXISTS
+        // Проверяем по номерам, а не по пользователю
         let exists: (bool,) = sqlx::query_as(
             r#"
             SELECT EXISTS(
                 SELECT 1 FROM blocks
-                WHERE blocker_id = $1 
+                WHERE UPPER(TRIM(blocker_plate)) = UPPER(TRIM($1))
                 AND UPPER(TRIM(blocked_plate)) = UPPER(TRIM($2))
                 LIMIT 1
             ) as exists
             "#,
         )
-        .bind(blocker_id)
+        .bind(blocker_plate)
         .bind(blocked_plate)
         .fetch_one(&*self.db)
         .await?;

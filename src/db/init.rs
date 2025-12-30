@@ -142,8 +142,8 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             -- Constraints для валидации
             CONSTRAINT blocked_plate_format CHECK (LENGTH(TRIM(blocked_plate)) >= 8 AND LENGTH(blocked_plate) <= 15),
-            -- Уникальность: один пользователь не может заблокировать один номер дважды
-            CONSTRAINT unique_user_block UNIQUE(blocker_id, blocked_plate)
+            -- Уникальность: один номер не может заблокировать другой номер дважды
+            CONSTRAINT unique_plate_block UNIQUE(UPPER(TRIM(blocker_plate)), UPPER(TRIM(blocked_plate)))
         )
         "#
     )

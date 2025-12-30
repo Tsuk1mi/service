@@ -93,55 +93,42 @@ impl BlockService {
         }
 
         // Проверка 2: Запрещаем взаимные блокировки
-        // Находим всех пользователей, у которых этот номер (normalized_plate) в user_plates
-        if let Ok(blocked_user_plates) =
-            user_plate_repository.find_by_plate(&normalized_plate).await
-        {
-            for blocked_user_plate in blocked_user_plates {
-                let blocked_user_id = blocked_user_plate.user_id;
-                // Пропускаем самого блокирующего (уже проверено выше)
-                if blocked_user_id == blocker_id {
-                    continue;
-                }
-
-                // Проверяем, не заблокировал ли этот пользователь какой-либо из номеров блокирующего
-                // Получаем все блокировки, созданные этим пользователем
-                if let Ok(blocks_by_blocked_user) =
-                    block_repository.find_by_blocker_id(blocked_user_id).await
-                {
-                    for existing_block in blocks_by_blocked_user {
-                        // Проверяем, не заблокировал ли этот пользователь какой-либо из номеров блокирующего
-                        for blocker_plate in &blocker_plate_strings {
-                            if existing_block
-                                .blocked_plate
-                                .eq_ignore_ascii_case(blocker_plate)
-                            {
-                                tracing::warn!(
-                                    "Mutual block detected: User {} tried to block {} but {} already blocked {}",
-                                    blocker_id,
-                                    normalized_plate,
-                                    blocked_user_id,
-                                    blocker_plate
-                                );
-                                return Err(AppError::Validation(
-                                    "Взаимная блокировка невозможна. Этот автомобиль уже перекрыл ваш.".to_string(),
-                                ));
-                            }
-                        }
+        // Проверяем, не заблокирован ли уже какой-либо из номеров блокирующего этим номером
+        // Ищем блокировки, где normalized_plate является блокирующим, а номера блокирующего - заблокированными
+        for blocker_plate in &blocker_plate_strings {
+            if let Ok(existing_blocks) = block_repository
+                .find_by_blocked_plate(blocker_plate)
+                .await
+            {
+                for existing_block in existing_blocks {
+                    if existing_block
+                        .blocker_plate
+                        .eq_ignore_ascii_case(&normalized_plate)
+                    {
+                        tracing::warn!(
+                            "Mutual block detected: Plate {} tried to block {} but {} already blocked {}",
+                            blocker_primary_plate,
+                            normalized_plate,
+                            normalized_plate,
+                            blocker_plate
+                        );
+                        return Err(AppError::Validation(
+                            "Взаимная блокировка невозможна. Этот автомобиль уже перекрыл ваш.".to_string(),
+                        ));
                     }
                 }
             }
         }
 
         tracing::info!(
-            "Creating block for user {} and plate {}",
-            blocker_id,
+            "Creating block for plate {} blocking {}",
+            blocker_primary_plate,
             normalized_plate
         );
 
-        // Оптимизированная проверка на дубликаты - используем EXISTS вместо загрузки всех блокировок
+        // Оптимизированная проверка на дубликаты - проверяем по номерам, а не по пользователю
         let exists = block_repository
-            .exists(blocker_id, &normalized_plate)
+            .exists(&blocker_primary_plate, &normalized_plate)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to check existing blocks: {:?}", e);
@@ -150,8 +137,8 @@ impl BlockService {
 
         if exists {
             tracing::warn!(
-                "Block already exists for user {} and plate {}",
-                blocker_id,
+                "Block already exists for plate {} blocking {}",
+                blocker_primary_plate,
                 normalized_plate
             );
             return Err(crate::error::AppError::Validation(
@@ -469,20 +456,30 @@ impl BlockService {
         user_repository: &UR,
         user_plate_repository: &UPR,
     ) -> AppResult<()> {
-        // Проверяем, что блокировка существует и принадлежит пользователю
+        // Проверяем, что блокировка существует
         let block = block_repository
             .find_by_id(block_id)
             .await?
             .ok_or_else(|| AppError::NotFound("Block not found".to_string()))?;
 
-        if block.blocker_id != blocker_id {
+        // Получаем все номера пользователя для проверки прав
+        let user_plates = user_plate_repository.find_by_user_id(blocker_id).await?;
+        let user_plate_strings: Vec<String> = user_plates.iter().map(|p| p.plate.clone()).collect();
+        
+        // Проверяем, что пользователь имеет право удалить блокировку (его номер должен совпадать с blocker_plate)
+        let normalized_blocker_plate = crate::utils::normalize_plate(&block.blocker_plate);
+        let has_permission = user_plate_strings
+            .iter()
+            .any(|plate| crate::utils::normalize_plate(plate).eq_ignore_ascii_case(&normalized_blocker_plate));
+
+        if !has_permission {
             return Err(AppError::Auth(
                 "You don't have permission to delete this block".to_string(),
             ));
         }
 
-        // Выполняем удаление
-        block_repository.delete(block_id, blocker_id).await?;
+        // Выполняем удаление по номеру, а не по пользователю
+        block_repository.delete(block_id, &block.blocker_plate).await?;
 
         // Рассылаем уведомления и пуш владельцам, чьи машины были разблокированы
         let blocked_plate = block.blocked_plate.clone();
