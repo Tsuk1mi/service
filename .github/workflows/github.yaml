@@ -112,8 +112,8 @@ jobs:
         if: ${{ env.HOST != '' && env.USER != '' && env.SSH_KEY != '' }}
         run: |
           mkdir -p ~/.ssh
-          echo "$SSH_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
+          echo "$SSH_KEY" > ~/.ssh/rimskiy_ci
+          chmod 600 ~/.ssh/rimskiy_ci
           ssh-keyscan "$HOST" >> ~/.ssh/known_hosts
 
       - name: Upload binaries and restart services

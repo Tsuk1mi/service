@@ -55,13 +55,12 @@ async fn main() -> anyhow::Result<()> {
     // 1. Из текущей директории (для локальной разработки)
     // 2. Из /opt/rimskiy-service/.env (для production)
     // 3. Из рабочей директории сервиса (если установлена через WorkingDirectory в systemd)
-    let env_paths = vec![
-        ".env",
-        "/opt/rimskiy-service/.env",
-        std::env::var("SERVICE_WORK_DIR")
-            .map(|dir| format!("{}/.env", dir))
-            .unwrap_or_default(),
-    ];
+    let mut env_paths: Vec<String> =
+        vec![".env".to_string(), "/opt/rimskiy-service/.env".to_string()];
+
+    if let Ok(work_dir) = std::env::var("SERVICE_WORK_DIR") {
+        env_paths.push(format!("{}/.env", work_dir));
+    }
 
     for env_path in env_paths {
         if !env_path.is_empty() && std::path::Path::new(&env_path).exists() {
