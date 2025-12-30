@@ -96,9 +96,7 @@ impl BlockService {
         // Проверяем, не заблокирован ли уже какой-либо из номеров блокирующего этим номером
         // Ищем блокировки, где normalized_plate является блокирующим, а номера блокирующего - заблокированными
         for blocker_plate in &blocker_plate_strings {
-            if let Ok(existing_blocks) = block_repository
-                .find_by_blocked_plate(blocker_plate)
-                .await
+            if let Ok(existing_blocks) = block_repository.find_by_blocked_plate(blocker_plate).await
             {
                 for existing_block in existing_blocks {
                     if existing_block
@@ -113,7 +111,8 @@ impl BlockService {
                             blocker_plate
                         );
                         return Err(AppError::Validation(
-                            "Взаимная блокировка невозможна. Этот автомобиль уже перекрыл ваш.".to_string(),
+                            "Взаимная блокировка невозможна. Этот автомобиль уже перекрыл ваш."
+                                .to_string(),
                         ));
                     }
                 }
@@ -465,12 +464,12 @@ impl BlockService {
         // Получаем все номера пользователя для проверки прав
         let user_plates = user_plate_repository.find_by_user_id(blocker_id).await?;
         let user_plate_strings: Vec<String> = user_plates.iter().map(|p| p.plate.clone()).collect();
-        
+
         // Проверяем, что пользователь имеет право удалить блокировку (его номер должен совпадать с blocker_plate)
         let normalized_blocker_plate = crate::utils::normalize_plate(&block.blocker_plate);
-        let has_permission = user_plate_strings
-            .iter()
-            .any(|plate| crate::utils::normalize_plate(plate).eq_ignore_ascii_case(&normalized_blocker_plate));
+        let has_permission = user_plate_strings.iter().any(|plate| {
+            crate::utils::normalize_plate(plate).eq_ignore_ascii_case(&normalized_blocker_plate)
+        });
 
         if !has_permission {
             return Err(AppError::Auth(
@@ -479,7 +478,9 @@ impl BlockService {
         }
 
         // Выполняем удаление по номеру, а не по пользователю
-        block_repository.delete(block_id, &block.blocker_plate).await?;
+        block_repository
+            .delete(block_id, &block.blocker_plate)
+            .await?;
 
         // Рассылаем уведомления и пуш владельцам, чьи машины были разблокированы
         let blocked_plate = block.blocked_plate.clone();
