@@ -9,6 +9,14 @@ pub fn server_info_router() -> Router<AppState> {
 
 async fn get_server_info(State(state): State<AppState>) -> Json<serde_json::Value> {
     let server_url = get_server_url(state.config.server_port);
+    
+    // Получаем URL для скачивания APK
+    let app_download_url = state.config.app_download_url.clone().unwrap_or_else(|| {
+        format!("{}/api/app/download", server_url)
+    });
+    
+    // Получаем username бота из токена (если есть)
+    let telegram_bot_username = std::env::var("TELEGRAM_BOT_USERNAME").ok();
 
     Json(json!({
         "server_url": server_url,
@@ -16,6 +24,7 @@ async fn get_server_info(State(state): State<AppState>) -> Json<serde_json::Valu
         "server_version": env!("CARGO_PKG_VERSION"),
         "min_client_version": state.config.min_client_version,
         "release_client_version": state.config.release_client_version,
-        "app_download_url": state.config.app_download_url,
+        "app_download_url": app_download_url,
+        "telegram_bot_username": telegram_bot_username,
     }))
 }

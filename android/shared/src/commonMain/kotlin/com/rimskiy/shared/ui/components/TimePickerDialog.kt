@@ -1,24 +1,28 @@
 package com.rimskiy.shared.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 
 /**
  * Парсит строку времени в формате HH:MM в часы и минуты
@@ -46,7 +50,6 @@ fun formatTime(hour: Int, minute: Int): String {
 /**
  * Диалог выбора времени с улучшенным UI
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TimePickerDialog(
     initialTime: String?,
@@ -57,9 +60,6 @@ fun TimePickerDialog(
     val (hour, minute) = parseTime(initialTime)
     var selectedHour by remember { mutableStateOf(hour) }
     var selectedMinute by remember { mutableStateOf(minute) }
-    
-    // Популярные времена для быстрого выбора
-    val quickTimes = listOf("08:00", "09:00", "12:00", "18:00", "20:00", "22:00")
     
     val scrollState = rememberScrollState()
 
@@ -76,49 +76,33 @@ fun TimePickerDialog(
         ) {
             Column(
                 modifier = Modifier
-                    .padding(16.dp)
+                    .padding(20.dp)
                     .verticalScroll(scrollState),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge
-                )
-
-                Divider()
-
-                // Быстрый выбор популярных времен - компактный layout
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        text = "Быстрый выбор",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                // Заголовок с иконкой
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Schedule,
+                        contentDescription = null,
+                        modifier = Modifier.size(28.dp),
+                        tint = MaterialTheme.colorScheme.primary
                     )
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        quickTimes.forEach { time ->
-                            val (h, m) = parseTime(time)
-                            AssistChip(
-                                onClick = {
-                                    selectedHour = h
-                                    selectedMinute = m
-                                },
-                                label = { Text(time, style = MaterialTheme.typography.bodySmall) },
-                                colors = AssistChipDefaults.assistChipColors(
-                                    containerColor = if (selectedHour == h && selectedMinute == m)
-                                        MaterialTheme.colorScheme.primaryContainer
-                                    else
-                                        MaterialTheme.colorScheme.surfaceVariant
-                                )
-                            )
-                        }
-                    }
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
 
-                Divider()
+                Divider(
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    thickness = 1.dp
+                )
 
                 // Ручной выбор времени - компактный layout
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -257,58 +241,90 @@ fun TimePickerDialog(
                     }
                 }
 
-                // Предпросмотр времени - компактный
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
+                // Предпросмотр времени - улучшенный дизайн с градиентом
+                ElevatedCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp)),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                    )
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    ),
+                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp)
                 ) {
-                    Row(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        MaterialTheme.colorScheme.primaryContainer,
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)
+                                    )
+                                )
+                            )
+                            .padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            text = "Выбрано:",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            text = "Выбрано время",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                         )
                         Text(
                             text = formatTime(selectedHour, selectedMinute),
-                            style = MaterialTheme.typography.headlineMedium,
+                            style = MaterialTheme.typography.displaySmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
 
                 Divider()
 
-                // Кнопки действий
+                // Кнопки действий - улучшенный дизайн
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     OutlinedButton(
                         onClick = {
+                            selectedHour = 0
+                            selectedMinute = 0
                             onTimeSelected(null)
                             onDismiss()
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
                     ) {
-                        Text("Очистить")
+                        Text(
+                            "Очистить",
+                            fontWeight = FontWeight.Medium
+                        )
                     }
                     Button(
                         onClick = {
                             onTimeSelected(formatTime(selectedHour, selectedMinute))
                             onDismiss()
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
                     ) {
-                        Text("Выбрать")
+                        Icon(
+                            imageVector = Icons.Default.Schedule,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "Выбрать",
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }

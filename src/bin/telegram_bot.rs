@@ -19,6 +19,8 @@ enum Command {
     Code,
     #[command(description = "Проверить блокировку: /block <номер>")]
     Block,
+    #[command(description = "Получить последнюю версию приложения: /apk")]
+    Apk,
 }
 
 #[derive(Clone)]
@@ -27,6 +29,7 @@ struct BotState {
     config: Arc<Config>,
     http_client: reqwest::Client,
     api_base_url: String,
+    apk_path: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -95,11 +98,28 @@ async fn main() -> anyhow::Result<()> {
     let api_base_url = std::env::var("API_BASE_URL")
         .unwrap_or_else(|_| format!("http://{}:{}", config.server_host, config.server_port));
 
+    // Определяем путь к APK файлу
+    let apk_path = config.app_apk_path.clone().or_else(|| {
+        // Пробуем найти APK в стандартных местах
+        let default_paths = vec![
+            "/opt/rimskiy-service/apk/app-release.apk",
+            "/var/www/html/apk/app-release.apk",
+            "./android/app/build/outputs/apk/release/app-release.apk",
+        ];
+        for path in default_paths {
+            if std::path::Path::new(path).exists() {
+                return Some(path.to_string());
+            }
+        }
+        None
+    });
+
     let bot_state = Arc::new(BotState {
         sms_service,
         config,
         http_client: reqwest::Client::new(),
         api_base_url,
+        apk_path,
     });
 
     let token = std::env::var("TELEGRAM_BOT_TOKEN").context("TELEGRAM_BOT_TOKEN is required")?;
@@ -126,6 +146,8 @@ async fn main() -> anyhow::Result<()> {
                     handle_code_command(&bot, &msg, trimmed, &state).await?;
                 } else if trimmed.starts_with("/block") {
                     handle_block_command(&bot, &msg, trimmed, &state).await?;
+                } else if trimmed.starts_with("/apk") {
+                    handle_apk_command(&bot, &msg, &state).await?;
                 }
             }
             Ok(())
@@ -376,6 +398,143 @@ async fn handle_block_command(
     Ok(())
 }
 
+async fn handle_apk_command(
+    bot: &Bot,
+    msg: &Message,
+    state: &BotState,
+) -> ResponseResult<()> {
+    // Отправляем сообщение о начале обработки
+    let processing_msg = bot
+        .send_message(
+            msg.chat.id,
+            "⏳ Загружаю последнюю версию приложения...",
+        )
+        .await?;
+
+    // Пробуем отправить APK файл напрямую с диска
+    let apk_sent = if let Some(apk_path) = &state.apk_path {
+        if std::path::Path::new(apk_path).exists() {
+            match tokio::fs::read(apk_path).await {
+                Ok(apk_data) => {
+                    let file_name = std::path::Path::new(apk_path)
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("app-release.apk");
+
+                    match bot
+                        .send_document(
+                            msg.chat.id,
+                            teloxide::types::InputFile::memory(apk_data).file_name(file_name),
+                        )
+                        .await
+                    {
+                        Ok(_) => {
+                            let _ = bot.delete_message(msg.chat.id, processing_msg.id).await;
+                            bot.send_message(
+                                msg.chat.id,
+                                format!(
+                                    "✅ Приложение успешно отправлено!\n\n\
+                                    📱 Файл: {}\n\n\
+                                    💡 Установите APK файл на ваше Android устройство.\n\n\
+                                    ⚠️ Если установка не запускается автоматически, разрешите установку из неизвестных источников в настройках безопасности.",
+                                    file_name
+                                ),
+                            )
+                            .await?;
+                            true
+                        }
+                        Err(e) => {
+                            tracing::error!("Ошибка при отправке APK: {}", e);
+                            false
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Ошибка при чтении APK файла {}: {}", apk_path, e);
+                    false
+                }
+            }
+        } else {
+            false
+        }
+    } else {
+        false
+    };
+
+    if !apk_sent {
+        // Если не удалось отправить файл напрямую, пробуем через API
+        let download_url = format!("{}/api/app/download", state.api_base_url);
+        let _ = bot.delete_message(msg.chat.id, processing_msg.id).await;
+
+        match state.http_client.get(&download_url).send().await {
+            Ok(response) => {
+                if response.status().is_success() {
+                    match response.bytes().await {
+                        Ok(apk_data) => {
+                            match bot
+                                .send_document(
+                                    msg.chat.id,
+                                    teloxide::types::InputFile::memory(apk_data.to_vec())
+                                        .file_name("app-release.apk"),
+                                )
+                                .await
+                            {
+                                Ok(_) => {
+                                    bot.send_message(
+                                        msg.chat.id,
+                                        "✅ Приложение успешно отправлено!\n\n\
+                                        📱 Файл: app-release.apk\n\n\
+                                        💡 Установите APK файл на ваше Android устройство.\n\n\
+                                        ⚠️ Если установка не запускается автоматически, разрешите установку из неизвестных источников в настройках безопасности.",
+                                    )
+                                    .await?;
+                                }
+                                Err(e) => {
+                                    let error_msg = format!(
+                                        "❌ Ошибка при отправке APK файла: {}\n\n\
+                                        Попробуйте скачать приложение по ссылке:\n{}",
+                                        e, download_url
+                                    );
+                                    bot.send_message(msg.chat.id, error_msg).await?;
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            let error_msg = format!(
+                                "❌ Ошибка при загрузке APK файла: {}\n\n\
+                                Попробуйте позже или обратитесь в поддержку.",
+                                e
+                            );
+                            bot.send_message(msg.chat.id, error_msg).await?;
+                            tracing::error!("Ошибка при загрузке APK через API: {}", e);
+                        }
+                    }
+                } else {
+                    let error_msg = format!(
+                        "❌ APK файл не найден на сервере.\n\n\
+                        Попробуйте позже или обратитесь в поддержку.\n\n\
+                        URL: {}",
+                        download_url
+                    );
+                    bot.send_message(msg.chat.id, error_msg).await?;
+                    tracing::warn!("APK файл не найден по URL: {}", download_url);
+                }
+            }
+            Err(e) => {
+                let error_msg = format!(
+                    "❌ Ошибка при запросе к серверу: {}\n\n\
+                    Попробуйте позже или обратитесь в поддержку.",
+                    e
+                );
+                bot.send_message(msg.chat.id, error_msg).await?;
+                tracing::error!("Ошибка запроса APK: {}", e);
+            }
+        }
+    }
+
+    Ok(())
+}
+
 async fn message_handler(
     bot: Bot,
     msg: Message,
@@ -390,7 +549,8 @@ async fn message_handler(
                 {}\n\n\
                 Примеры использования:\n\
                 /code +79001234567 - получить код авторизации\n\
-                /block А123БВ777 - проверить блокировку автомобиля",
+                /block А123БВ777 - проверить блокировку автомобиля\n\
+                /apk - получить последнюю версию приложения",
                 Command::descriptions()
             );
             bot.send_message(msg.chat.id, help_text).await?;
@@ -402,6 +562,9 @@ async fn message_handler(
         Command::Block => {
             let text = msg.text().unwrap_or("");
             handle_block_command(&bot, &msg, text, &state).await?;
+        }
+        Command::Apk => {
+            handle_apk_command(&bot, &msg, &state).await?;
         }
     }
     Ok(())

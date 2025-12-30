@@ -75,6 +75,7 @@ fun AppNavigation(
     var minRequiredVersion by remember { mutableStateOf<String?>(null) }
     var releaseVersion by remember { mutableStateOf<String?>(null) }
     var downloadUrl by remember { mutableStateOf<String?>(null) }
+    var telegramBotUsername by remember { mutableStateOf<String?>(null) }
     var isForceUpdate by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     
@@ -85,6 +86,7 @@ fun AppNavigation(
                 onSuccess = { serverInfo ->
                     val infoToCheck = info ?: serverInfo
                     downloadUrl = infoToCheck.app_download_url
+                    telegramBotUsername = infoToCheck.telegram_bot_username
                     
                     // Проверяем обязательное обновление (min_client_version)
                     val minVersion = infoToCheck.min_client_version

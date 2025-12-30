@@ -10,5 +10,6 @@ data class ServerInfoResponse(
     val min_client_version: String? = null,
     val release_client_version: String? = null,
     val app_download_url: String? = null
+    val telegram_bot_username: String? = null
 )
 
