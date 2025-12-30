@@ -22,9 +22,11 @@ async fn get_server_info(State(state): State<AppState>) -> Json<serde_json::Valu
 
     // Автоматически определяем версию приложения на основе версии сервера
     // Если release_client_version не указан, используем server_version
-    let auto_release_version = state.config.release_client_version.clone().or_else(|| {
-        Some(env!("CARGO_PKG_VERSION").to_string())
-    });
+    let auto_release_version = state
+        .config
+        .release_client_version
+        .clone()
+        .or_else(|| Some(env!("CARGO_PKG_VERSION").to_string()));
 
     Json(json!({
         "server_url": server_url,

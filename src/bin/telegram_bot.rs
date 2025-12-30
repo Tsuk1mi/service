@@ -99,20 +99,23 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|_| format!("http://{}:{}", config.server_host, config.server_port));
 
     // Определяем путь к APK файлу
-    let apk_path = config.app_apk_path.clone().or_else(|| {
-        // Пробуем найти APK в стандартных местах
-        let default_paths = vec![
-            "/opt/rimskiy-service/apk/app-release.apk",
-            "/var/www/html/apk/app-release.apk",
-            "./android/app/build/outputs/apk/release/app-release.apk",
-        ];
-        for path in default_paths {
-            if std::path::Path::new(path).exists() {
-                return Some(path.to_string());
+    let apk_path = config
+        .app_apk_path
+        .clone()
+        .or_else(|| {
+            // Пробуем найти APK в стандартных местах
+            let default_paths = vec![
+                "/opt/rimskiy-service/apk/app-release.apk",
+                "/var/www/html/apk/app-release.apk",
+                "./android/app/build/outputs/apk/release/app-release.apk",
+            ];
+            for path in default_paths {
+                if std::path::Path::new(path).exists() {
+                    return Some(path.to_string());
+                }
             }
-        }
-        None
-    });
+            None
+        });
 
     let bot_state = Arc::new(BotState {
         sms_service,
