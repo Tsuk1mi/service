@@ -43,6 +43,32 @@ openssl rand -hex 32
 -join ((48..57) + (97..102) | Get-Random -Count 64 | ForEach-Object {[char]$_})
 ```
 
+## Настройка CI/CD (GitHub Actions)
+
+Для автоматического деплоя через GitHub Actions необходимо настроить Variables и Secrets в репозитории:
+
+### GitHub Variables (Settings → Secrets and variables → Actions → Variables):
+
+- `DEPLOY_HOST` - IP адрес или домен сервера для деплоя (например: `192.168.1.100`)
+- `DEPLOY_USER` - Пользователь для SSH подключения (например: `deploy`)
+- `BACKEND_DEPLOY_PATH` - Путь для деплоя бинарных файлов (например: `/opt/rimskiy-service`)
+- `BACKEND_SERVICE_NAME` - Имя systemd сервиса для основного сервиса (например: `rimskiy-service`)
+- `TELEGRAM_BOT_SERVICE_NAME` - Имя systemd сервиса для Telegram бота (например: `telegram-bot`)
+
+### GitHub Secrets (Settings → Secrets and variables → Actions → Secrets):
+
+- `DEPLOY_KEY` - Приватный SSH ключ для доступа к серверу (содержимое файла `~/.ssh/id_rsa`)
+- `APK_DEPLOY_HOST` - (Опционально) IP/домен для деплоя APK файлов
+- `APK_DEPLOY_USER` - (Опционально) Пользователь для деплоя APK
+- `APK_DEPLOY_KEY` - (Опционально) SSH ключ для деплоя APK
+- `APK_DEPLOY_PATH` - (Опционально) Путь для деплоя APK (например: `/var/www/html/apk`)
+- `ANDROID_KEYSTORE_BASE64` - (Опционально) Base64-encoded keystore файл для подписи Android приложения
+- `ANDROID_KEYSTORE_PASSWORD` - (Опционально) Пароль от keystore
+- `ANDROID_KEY_ALIAS` - (Опционально) Alias ключа в keystore
+- `ANDROID_KEY_PASSWORD` - (Опционально) Пароль от ключа
+
+**Важно:** Переменные из `.env.example` (DATABASE_URL, JWT_SECRET и т.д.) НЕ нужно добавлять в GitHub - они должны быть только в `.env` файле на сервере!
+
 ## Запуск
 
 1. Убедитесь, что PostgreSQL запущен и база данных создана
