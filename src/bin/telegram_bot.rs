@@ -173,8 +173,8 @@ async fn handle_code_command(
     match state.sms_service.generate_code(&normalized_phone).await {
         Ok(code) => {
             // Проверяем, настроен ли SMS провайдер
-            let sms_configured = std::env::var("SMS_API_URL").is_ok()
-                && std::env::var("SMS_API_KEY").is_ok();
+            let sms_configured =
+                std::env::var("SMS_API_URL").is_ok() && std::env::var("SMS_API_KEY").is_ok();
 
             // Формируем сообщение в зависимости от того, отправлено ли SMS
             let message = if sms_configured {
@@ -269,29 +269,29 @@ async fn handle_block_command(
         .await?;
 
     // Делаем запрос к API для проверки блокировки
-    let check_url = format!("{}/api/blocks/check?plate={}", state.api_base_url, normalized_plate);
-    
+    let check_url = format!(
+        "{}/api/blocks/check?plate={}",
+        state.api_base_url, normalized_plate
+    );
     match state.http_client.get(&check_url).send().await {
         Ok(response) => {
             if response.status().is_success() {
                 match response.json::<CheckBlockResponse>().await {
                     Ok(check_result) => {
                         let _ = bot.delete_message(msg.chat.id, processing_msg.id).await;
-                        
+
                         if check_result.is_blocked {
                             if let Some(block_info) = check_result.block {
-                                let blocker_name = block_info.blocker.name.as_deref().unwrap_or("Неизвестно");
+                                let blocker_name =
+                                    block_info.blocker.name.as_deref().unwrap_or("Неизвестно");
                                 let message = format!(
                                     "🚗 Автомобиль {} заблокирован\n\n\
                                     👤 Блокирующий: {}\n\n\
                                     📅 Дата блокировки: {}\n\n\
                                     📱 Проверьте приложение для подробностей",
-                                    normalized_plate,
-                                    blocker_name,
-                                    block_info.created_at
+                                    normalized_plate, blocker_name, block_info.created_at
                                 );
                                 bot.send_message(msg.chat.id, message).await?;
-                                
                                 tracing::info!(
                                     "Проверка блокировки для {} (чат: {}): заблокирован пользователем {}",
                                     normalized_plate,
@@ -315,10 +315,7 @@ async fn handle_block_command(
                     }
                     Err(e) => {
                         let _ = bot.delete_message(msg.chat.id, processing_msg.id).await;
-                        let error_msg = format!(
-                            "❌ Ошибка при обработке ответа сервера: {}",
-                            e
-                        );
+                        let error_msg = format!("❌ Ошибка при обработке ответа сервера: {}", e);
                         bot.send_message(msg.chat.id, error_msg).await?;
                         tracing::error!("Ошибка парсинга ответа для {}: {}", normalized_plate, e);
                     }
@@ -333,7 +330,12 @@ async fn handle_block_command(
                     status, error_text
                 );
                 bot.send_message(msg.chat.id, error_msg).await?;
-                tracing::error!("Ошибка API для {}: {} - {}", normalized_plate, status, error_text);
+                tracing::error!(
+                    "Ошибка API для {}: {} - {}",
+                    normalized_plate,
+                    status,
+                    error_text
+                );
             }
         }
         Err(e) => {
@@ -347,7 +349,7 @@ async fn handle_block_command(
             tracing::error!("Ошибка запроса для {}: {}", normalized_plate, e);
         }
     }
-    
+
     Ok(())
 }
 

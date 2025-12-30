@@ -74,12 +74,11 @@ impl BlockService {
             .find(|p| p.is_primary)
             .map(|p| p.plate.clone())
             .or_else(|| blocker_plates.first().map(|p| p.plate.clone()))
-            .ok_or_else(|| {
-                AppError::Validation("Сначала добавьте свой автомобиль".to_string())
-            })?;
+            .ok_or_else(|| AppError::Validation("Сначала добавьте свой автомобиль".to_string()))?;
 
         // Проверка 1: Запрещаем самоблокировку (нельзя перекрыть собственный авто)
-        let blocker_plate_strings: Vec<String> = blocker_plates.iter().map(|p| p.plate.clone()).collect();
+        let blocker_plate_strings: Vec<String> =
+            blocker_plates.iter().map(|p| p.plate.clone()).collect();
         for blocker_plate in &blocker_plate_strings {
             if blocker_plate.eq_ignore_ascii_case(&normalized_plate) {
                 tracing::warn!(
@@ -95,10 +94,11 @@ impl BlockService {
 
         // Проверка 2: Запрещаем взаимные блокировки
         // Находим всех пользователей, у которых этот номер (normalized_plate) в user_plates
-        if let Ok(blocked_user_plates) = user_plate_repository.find_by_plate(&normalized_plate).await {
+        if let Ok(blocked_user_plates) =
+            user_plate_repository.find_by_plate(&normalized_plate).await
+        {
             for blocked_user_plate in blocked_user_plates {
                 let blocked_user_id = blocked_user_plate.user_id;
-                
                 // Пропускаем самого блокирующего (уже проверено выше)
                 if blocked_user_id == blocker_id {
                     continue;
@@ -106,14 +106,16 @@ impl BlockService {
 
                 // Проверяем, не заблокировал ли этот пользователь какой-либо из номеров блокирующего
                 // Получаем все блокировки, созданные этим пользователем
-                if let Ok(blocks_by_blocked_user) = block_repository
-                    .find_by_blocker_id(blocked_user_id)
-                    .await
+                if let Ok(blocks_by_blocked_user) =
+                    block_repository.find_by_blocker_id(blocked_user_id).await
                 {
                     for existing_block in blocks_by_blocked_user {
                         // Проверяем, не заблокировал ли этот пользователь какой-либо из номеров блокирующего
                         for blocker_plate in &blocker_plate_strings {
-                            if existing_block.blocked_plate.eq_ignore_ascii_case(blocker_plate) {
+                            if existing_block
+                                .blocked_plate
+                                .eq_ignore_ascii_case(blocker_plate)
+                            {
                                 tracing::warn!(
                                     "Mutual block detected: User {} tried to block {} but {} already blocked {}",
                                     blocker_id,
