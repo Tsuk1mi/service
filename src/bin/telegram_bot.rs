@@ -132,7 +132,10 @@ async fn message_handler(
             let processing_msg = bot
                 .send_message(
                     msg.chat.id,
-                    format!("⏳ Генерирую код и отправляю SMS на номер {}...", normalized_phone),
+                    format!(
+                        "⏳ Генерирую код и отправляю SMS на номер {}...",
+                        normalized_phone
+                    ),
                 )
                 .await?;
 
@@ -152,7 +155,10 @@ async fn message_handler(
                             ⏰ Код действителен {} минут\n\n\
                             💬 Код также отправлен в этом сообщении для удобства\n\n\
                             📲 Введите этот код в приложении для завершения авторизации.",
-                            normalized_phone, normalized_phone, code, state.config.sms_code_expiration_minutes
+                            normalized_phone,
+                            normalized_phone,
+                            code,
+                            state.config.sms_code_expiration_minutes
                         )
                     } else {
                         format!(
@@ -180,7 +186,7 @@ async fn message_handler(
                 Err(e) => {
                     // Удаляем сообщение о обработке
                     let _ = bot.delete_message(msg.chat.id, processing_msg.id).await;
-                    
+
                     let error_msg = format!(
                         "❌ Ошибка при генерации кода: {}\n\n\
                         Попробуйте позже или обратитесь в поддержку.",
