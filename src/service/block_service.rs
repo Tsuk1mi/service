@@ -60,29 +60,75 @@ impl BlockService {
                 e
             })?;
 
-        // Определяем основной номер блокирующего (для совместных владельцев и запрета самоблокировки)
-        let blocker_primary_plate = if let Ok(Some(primary_plate)) = user_plate_repository
-            .find_primary_by_user_id(blocker_id)
-            .await
-        {
-            primary_plate.plate
-        } else {
-            let plates = user_plate_repository.find_by_user_id(blocker_id).await?;
-            plates.first().map(|p| p.plate.clone()).ok_or_else(|| {
-                AppError::Validation("Сначала добавьте свой автомобиль".to_string())
-            })?
-        };
-
-        // Запрещаем взаимные блокировки (нельзя перекрыть собственный авто)
-        if blocker_primary_plate.eq_ignore_ascii_case(&normalized_plate) {
-            tracing::warn!(
-                "User {} attempted to block their own plate {}, blocking denied",
-                blocker_id,
-                normalized_plate
-            );
+        // Получаем все номера блокирующего пользователя
+        let blocker_plates = user_plate_repository.find_by_user_id(blocker_id).await?;
+        if blocker_plates.is_empty() {
             return Err(AppError::Validation(
-                "Нельзя перекрыть свой же автомобиль".to_string(),
+                "Сначала добавьте свой автомобиль".to_string(),
             ));
+        }
+
+        // Определяем основной номер блокирующего (для записи в блокировку)
+        let blocker_primary_plate = blocker_plates
+            .iter()
+            .find(|p| p.is_primary)
+            .map(|p| p.plate.clone())
+            .or_else(|| blocker_plates.first().map(|p| p.plate.clone()))
+            .ok_or_else(|| {
+                AppError::Validation("Сначала добавьте свой автомобиль".to_string())
+            })?;
+
+        // Проверка 1: Запрещаем самоблокировку (нельзя перекрыть собственный авто)
+        let blocker_plate_strings: Vec<String> = blocker_plates.iter().map(|p| p.plate.clone()).collect();
+        for blocker_plate in &blocker_plate_strings {
+            if blocker_plate.eq_ignore_ascii_case(&normalized_plate) {
+                tracing::warn!(
+                    "User {} attempted to block their own plate {}, blocking denied",
+                    blocker_id,
+                    normalized_plate
+                );
+                return Err(AppError::Validation(
+                    "Нельзя перекрыть свой же автомобиль".to_string(),
+                ));
+            }
+        }
+
+        // Проверка 2: Запрещаем взаимные блокировки
+        // Находим всех пользователей, у которых этот номер (normalized_plate) в user_plates
+        if let Ok(blocked_user_plates) = user_plate_repository.find_by_plate(&normalized_plate).await {
+            for blocked_user_plate in blocked_user_plates {
+                let blocked_user_id = blocked_user_plate.user_id;
+                
+                // Пропускаем самого блокирующего (уже проверено выше)
+                if blocked_user_id == blocker_id {
+                    continue;
+                }
+
+                // Проверяем, не заблокировал ли этот пользователь какой-либо из номеров блокирующего
+                // Получаем все блокировки, созданные этим пользователем
+                if let Ok(blocks_by_blocked_user) = block_repository
+                    .find_by_blocker_id(blocked_user_id)
+                    .await
+                {
+                    for existing_block in blocks_by_blocked_user {
+                        // Проверяем, не заблокировал ли этот пользователь какой-либо из номеров блокирующего
+                        for blocker_plate in &blocker_plate_strings {
+                            if existing_block.blocked_plate.eq_ignore_ascii_case(blocker_plate) {
+                                tracing::warn!(
+                                    "Mutual block detected: User {} tried to block {} but {} already blocked {}",
+                                    blocker_id,
+                                    normalized_plate,
+                                    blocked_user_id,
+                                    blocker_plate
+                                );
+                                return Err(AppError::Validation(
+                                    "Взаимная блокировка невозможна. Этот автомобиль уже перекрыл ваш.".to_string(),
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         tracing::info!(
