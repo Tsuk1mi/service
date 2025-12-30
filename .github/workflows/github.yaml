@@ -65,6 +65,7 @@ jobs:
       SSH_KEY: ${{ secrets.DEPLOY_KEY }}
       DEST: ${{ vars.BACKEND_DEPLOY_PATH }}
       SERVICE_NAME: ${{ vars.BACKEND_SERVICE_NAME }}
+      TELEGRAM_BOT_SERVICE_NAME: ${{ vars.TELEGRAM_BOT_SERVICE_NAME }}
     steps:
       - name: Checkout (empty)
         uses: actions/checkout@v4
@@ -86,22 +87,110 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan "$HOST" >> ~/.ssh/known_hosts
 
-      - name: Upload binaries and restart service
+      - name: Upload binaries and restart services
         if: ${{ env.HOST != '' && env.USER != '' && env.SSH_KEY != '' }}
         run: |
+          set -e
           DEST_PATH=${DEST:-/opt/rimskiy-service}
           SERVICE=${SERVICE_NAME:-rimskiy-service}
-          mkdir -p "$DEST_PATH"
+          TELEGRAM_SERVICE=${TELEGRAM_BOT_SERVICE_NAME:-telegram-bot}
+          
+          echo "=== Deploying to $DEST_PATH ==="
+          
+          # Verify artifacts exist
+          echo "Checking artifacts..."
+          ls -lh artifacts/ || echo "Warning: artifacts directory not found"
+          
           # Upload main service binary
-          scp artifacts/rimskiy_service "$USER@$HOST:/tmp/rimskiy_service"
-          ssh "$USER@$HOST" "sudo mkdir -p $DEST_PATH && sudo mv /tmp/rimskiy_service $DEST_PATH/rimskiy_service && sudo chmod +x $DEST_PATH/rimskiy_service && sudo systemctl restart $SERVICE"
-          # Upload telegram bot binary (optional, if service exists)
+          echo "=== Uploading main service binary ==="
+          if [ -f artifacts/rimskiy_service ]; then
+            scp artifacts/rimskiy_service "$USER@$HOST:/tmp/rimskiy_service"
+            ssh "$USER@$HOST" "sudo mkdir -p $DEST_PATH && sudo mv /tmp/rimskiy_service $DEST_PATH/rimskiy_service && sudo chmod +x $DEST_PATH/rimskiy_service"
+            echo "Main service binary deployed"
+            
+            # Restart main service
+            echo "Restarting main service: $SERVICE"
+            ssh "$USER@$HOST" "sudo systemctl restart $SERVICE || echo 'Warning: Failed to restart $SERVICE'"
+            sleep 2
+            ssh "$USER@$HOST" "sudo systemctl status $SERVICE --no-pager -l || true"
+            echo "Main service restarted"
+          else
+            echo "Error: rimskiy_service binary not found in artifacts"
+            exit 1
+          fi
+          
+          # Upload and restart telegram bot
+          echo "=== Deploying Telegram bot ==="
           if [ -f artifacts/telegram_bot ]; then
+            echo "Uploading telegram bot binary..."
             scp artifacts/telegram_bot "$USER@$HOST:/tmp/telegram_bot"
             ssh "$USER@$HOST" "sudo mkdir -p $DEST_PATH && sudo mv /tmp/telegram_bot $DEST_PATH/telegram_bot && sudo chmod +x $DEST_PATH/telegram_bot"
-            # Restart telegram bot service if it exists
-            ssh "$USER@$HOST" "sudo systemctl restart telegram-bot || echo 'Telegram bot service not found, skipping restart'"
+            echo "Telegram bot binary deployed to $DEST_PATH/telegram_bot"
+            
+            # Verify binary exists and is executable
+            ssh "$USER@$HOST" "ls -lh $DEST_PATH/telegram_bot && file $DEST_PATH/telegram_bot || echo 'Warning: Binary verification failed'"
+            
+            # Check if telegram bot service exists
+            echo "Checking if telegram bot service exists: $TELEGRAM_SERVICE"
+            SERVICE_EXISTS=$(ssh "$USER@$HOST" "sudo systemctl list-unit-files | grep -c $TELEGRAM_SERVICE || echo '0'")
+            
+            if [ "$SERVICE_EXISTS" != "0" ]; then
+              echo "Telegram bot service found: $TELEGRAM_SERVICE"
+              
+              # Reload systemd daemon (in case service file was updated)
+              ssh "$USER@$HOST" "sudo systemctl daemon-reload"
+              
+              # Restart telegram bot service
+              echo "Restarting telegram bot service..."
+              ssh "$USER@$HOST" "sudo systemctl restart $TELEGRAM_SERVICE || echo 'Warning: Failed to restart $TELEGRAM_SERVICE'"
+              
+              # Wait a bit for service to start
+              sleep 3
+              
+              # Check service status
+              echo "Checking telegram bot service status..."
+              ssh "$USER@$HOST" "sudo systemctl status $TELEGRAM_SERVICE --no-pager -l || true"
+              
+              # Verify service is running
+              SERVICE_STATUS=$(ssh "$USER@$HOST" "sudo systemctl is-active $TELEGRAM_SERVICE || echo 'inactive'")
+              if [ "$SERVICE_STATUS" = "active" ]; then
+                echo "✅ Telegram bot service is running"
+              else
+                echo "⚠️  Warning: Telegram bot service is not active. Status: $SERVICE_STATUS"
+                echo "Checking logs..."
+                ssh "$USER@$HOST" "sudo journalctl -u $TELEGRAM_SERVICE -n 20 --no-pager || true"
+              fi
+            else
+              echo "⚠️  Warning: Telegram bot service '$TELEGRAM_SERVICE' not found."
+              echo "To create the service, create a systemd service file at: /etc/systemd/system/$TELEGRAM_SERVICE.service"
+              echo ""
+              echo "Example service file content:"
+              echo "[Unit]"
+              echo "Description=Telegram Bot for Rimskiy Service"
+              echo "After=network.target"
+              echo ""
+              echo "[Service]"
+              echo "Type=simple"
+              echo "User=your-user"
+              echo "WorkingDirectory=$DEST_PATH"
+              echo "ExecStart=$DEST_PATH/telegram_bot"
+              echo "Restart=always"
+              echo "RestartSec=10"
+              echo "Environment=\"RUST_LOG=info\""
+              echo "EnvironmentFile=-/opt/rimskiy-service/.env"
+              echo ""
+              echo "[Install]"
+              echo "WantedBy=multi-user.target"
+              echo ""
+              echo "Then run: sudo systemctl daemon-reload && sudo systemctl enable $TELEGRAM_SERVICE && sudo systemctl start $TELEGRAM_SERVICE"
+            fi
+          else
+            echo "⚠️  Warning: telegram_bot binary not found in artifacts"
+            echo "Available artifacts:"
+            ls -lh artifacts/ || echo "No artifacts found"
           fi
+          
+          echo "=== Deployment completed ==="
 
   android-check:
     name: Android (Check Compilation)
