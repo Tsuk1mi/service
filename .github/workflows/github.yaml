@@ -241,25 +241,8 @@ jobs:
               echo "Creating systemd service file..."
               
               # Создаем systemd сервис автоматически
-              ssh "$USER@$HOST" "sudo tee /etc/systemd/system/$TELEGRAM_SERVICE.service > /dev/null <<EOF
-[Unit]
-Description=Telegram Bot for Rimskiy Service
-After=network.target
-
-[Service]
-Type=simple
-User=\$(whoami)
-WorkingDirectory=$DEST_PATH
-ExecStart=$DEST_PATH/telegram_bot
-Restart=always
-RestartSec=10
-Environment=\"RUST_LOG=info\"
-EnvironmentFile=-$DEST_PATH/.env
-
-[Install]
-WantedBy=multi-user.target
-EOF
-"
+              CURRENT_USER=$(ssh "$USER@$HOST" "whoami")
+              ssh "$USER@$HOST" "printf '%s\n' '[Unit]' 'Description=Telegram Bot for Rimskiy Service' 'After=network.target' '' '[Service]' 'Type=simple' \"User=$CURRENT_USER\" \"WorkingDirectory=$DEST_PATH\" \"ExecStart=$DEST_PATH/telegram_bot\" 'Restart=always' 'RestartSec=10' 'Environment=\"RUST_LOG=info\"' \"EnvironmentFile=-$DEST_PATH/.env\" '' '[Install]' 'WantedBy=multi-user.target' | sudo tee /etc/systemd/system/$TELEGRAM_SERVICE.service > /dev/null"
               
               echo "Service file created. Reloading systemd..."
               ssh "$USER@$HOST" "sudo systemctl daemon-reload"
