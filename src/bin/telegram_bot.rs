@@ -62,7 +62,7 @@ async fn main() -> anyhow::Result<()> {
             .map(|dir| format!("{}/.env", dir))
             .unwrap_or_default(),
     ];
-    
+
     for env_path in env_paths {
         if !env_path.is_empty() && std::path::Path::new(&env_path).exists() {
             if let Err(e) = dotenv::from_path(&env_path) {
@@ -73,7 +73,7 @@ async fn main() -> anyhow::Result<()> {
             }
         }
     }
-    
+
     // Также пытаемся загрузить из стандартного места
     dotenv::dotenv().ok();
 
