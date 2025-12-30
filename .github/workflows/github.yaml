@@ -166,15 +166,58 @@ jobs:
             if [ "$SERVICE_EXISTS" != "0" ]; then
               echo "Telegram bot service found: $TELEGRAM_SERVICE"
               
-              # Reload systemd daemon (in case service file was updated)
+              # Проверяем конфигурацию сервиса и исправляем если нужно
+              echo "Checking service configuration..."
+              SERVICE_FILE="/etc/systemd/system/$TELEGRAM_SERVICE.service"
+              CURRENT_USER=$(ssh "$USER@$HOST" "whoami")
+              
+              # Проверяем, правильно ли настроен ExecStart
+              EXEC_START=$(ssh "$USER@$HOST" "sudo grep '^ExecStart=' $SERVICE_FILE | cut -d'=' -f2-" || echo "")
+              if [ -z "$EXEC_START" ] || [ "$EXEC_START" != "$DEST_PATH/telegram_bot" ]; then
+                echo "Fixing ExecStart in service file..."
+                ssh "$USER@$HOST" "sudo sed -i 's|^ExecStart=.*|ExecStart=$DEST_PATH/telegram_bot|' $SERVICE_FILE || true"
+              fi
+              
+              # Проверяем, есть ли WorkingDirectory
+              if ! ssh "$USER@$HOST" "sudo grep -q '^WorkingDirectory=' $SERVICE_FILE"; then
+                echo "Adding WorkingDirectory to service file..."
+                ssh "$USER@$HOST" "sudo sed -i '/^\[Service\]/a WorkingDirectory=$DEST_PATH' $SERVICE_FILE || true"
+              fi
+              
+              # Проверяем, есть ли EnvironmentFile
+              if ! ssh "$USER@$HOST" "sudo grep -q '^EnvironmentFile=' $SERVICE_FILE"; then
+                echo "Adding EnvironmentFile to service file..."
+                ssh "$USER@$HOST" "sudo sed -i '/^WorkingDirectory=/a EnvironmentFile=-$DEST_PATH/.env' $SERVICE_FILE || true"
+              fi
+              
+              # Проверяем User
+              if ! ssh "$USER@$HOST" "sudo grep -q '^User=' $SERVICE_FILE"; then
+                echo "Adding User to service file..."
+                ssh "$USER@$HOST" "sudo sed -i '/^\[Service\]/a User=$CURRENT_USER' $SERVICE_FILE || true"
+              fi
+              
+              # Reload systemd daemon (в случае обновления конфигурации)
               ssh "$USER@$HOST" "sudo systemctl daemon-reload"
+              
+              # Проверяем наличие .env файла
+              echo "Checking .env file..."
+              if ! ssh "$USER@$HOST" "sudo test -f $DEST_PATH/.env"; then
+                echo "⚠️  WARNING: .env file not found at $DEST_PATH/.env"
+                echo "The service needs .env file with DATABASE_URL, TELEGRAM_BOT_TOKEN, etc."
+              else
+                echo "✅ .env file exists"
+              fi
+              
+              # Проверяем права на бинарный файл
+              echo "Checking binary permissions..."
+              ssh "$USER@$HOST" "sudo ls -la $DEST_PATH/telegram_bot"
               
               # Restart telegram bot service
               echo "Restarting telegram bot service..."
               ssh "$USER@$HOST" "sudo systemctl restart $TELEGRAM_SERVICE || echo 'Warning: Failed to restart $TELEGRAM_SERVICE'"
               
               # Wait a bit for service to start
-              sleep 3
+              sleep 5
               
               # Check service status
               echo "Checking telegram bot service status..."
@@ -186,32 +229,44 @@ jobs:
                 echo "✅ Telegram bot service is running"
               else
                 echo "⚠️  Warning: Telegram bot service is not active. Status: $SERVICE_STATUS"
-                echo "Checking logs..."
-                ssh "$USER@$HOST" "sudo journalctl -u $TELEGRAM_SERVICE -n 20 --no-pager || true"
+                echo "Checking recent logs..."
+                ssh "$USER@$HOST" "sudo journalctl -u $TELEGRAM_SERVICE -n 30 --no-pager || true"
+                
+                # Показываем текущую конфигурацию сервиса
+                echo "Current service configuration:"
+                ssh "$USER@$HOST" "sudo cat $SERVICE_FILE || echo 'Service file not found'"
               fi
             else
               echo "⚠️  Warning: Telegram bot service '$TELEGRAM_SERVICE' not found."
-              echo "To create the service, create a systemd service file at: /etc/systemd/system/$TELEGRAM_SERVICE.service"
-              echo ""
-              echo "Example service file content:"
-              echo "[Unit]"
-              echo "Description=Telegram Bot for Rimskiy Service"
-              echo "After=network.target"
-              echo ""
-              echo "[Service]"
-              echo "Type=simple"
-              echo "User=your-user"
-              echo "WorkingDirectory=$DEST_PATH"
-              echo "ExecStart=$DEST_PATH/telegram_bot"
-              echo "Restart=always"
-              echo "RestartSec=10"
-              echo "Environment=\"RUST_LOG=info\""
-              echo "EnvironmentFile=-/opt/rimskiy-service/.env"
-              echo ""
-              echo "[Install]"
-              echo "WantedBy=multi-user.target"
-              echo ""
-              echo "Then run: sudo systemctl daemon-reload && sudo systemctl enable $TELEGRAM_SERVICE && sudo systemctl start $TELEGRAM_SERVICE"
+              echo "Creating systemd service file..."
+              
+              # Создаем systemd сервис автоматически
+              ssh "$USER@$HOST" "sudo tee /etc/systemd/system/$TELEGRAM_SERVICE.service > /dev/null <<EOF
+[Unit]
+Description=Telegram Bot for Rimskiy Service
+After=network.target
+
+[Service]
+Type=simple
+User=\$(whoami)
+WorkingDirectory=$DEST_PATH
+ExecStart=$DEST_PATH/telegram_bot
+Restart=always
+RestartSec=10
+Environment=\"RUST_LOG=info\"
+EnvironmentFile=-$DEST_PATH/.env
+
+[Install]
+WantedBy=multi-user.target
+EOF
+"
+              
+              echo "Service file created. Reloading systemd..."
+              ssh "$USER@$HOST" "sudo systemctl daemon-reload"
+              echo "Enabling and starting service..."
+              ssh "$USER@$HOST" "sudo systemctl enable $TELEGRAM_SERVICE && sudo systemctl start $TELEGRAM_SERVICE || echo 'Failed to start service'"
+              sleep 3
+              ssh "$USER@$HOST" "sudo systemctl status $TELEGRAM_SERVICE --no-pager -l || true"
             fi
           else
             echo "⚠️  Warning: telegram_bot binary not found in artifacts"

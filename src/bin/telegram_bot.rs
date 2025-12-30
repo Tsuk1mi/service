@@ -51,6 +51,30 @@ struct BlockerInfo {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Пытаемся загрузить .env файл из нескольких возможных мест
+    // 1. Из текущей директории (для локальной разработки)
+    // 2. Из /opt/rimskiy-service/.env (для production)
+    // 3. Из рабочей директории сервиса (если установлена через WorkingDirectory в systemd)
+    let env_paths = vec![
+        ".env",
+        "/opt/rimskiy-service/.env",
+        std::env::var("SERVICE_WORK_DIR")
+            .map(|dir| format!("{}/.env", dir))
+            .unwrap_or_default(),
+    ];
+    
+    for env_path in env_paths {
+        if !env_path.is_empty() && std::path::Path::new(&env_path).exists() {
+            if let Err(e) = dotenv::from_path(&env_path) {
+                tracing::warn!("Failed to load .env from {}: {}", env_path, e);
+            } else {
+                tracing::info!("Loaded .env from {}", env_path);
+                break;
+            }
+        }
+    }
+    
+    // Также пытаемся загрузить из стандартного места
     dotenv::dotenv().ok();
 
     // Инициализируем логирование
