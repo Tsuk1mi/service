@@ -100,11 +100,32 @@ fun AppNavigation(
                     
                     // Проверяем опциональное обновление (release_client_version)
                     val releaseVersionValue = infoToCheck.release_client_version
-                    if (releaseVersionValue != null && com.rimskiy.shared.utils.VersionUtils.compare(appVersion, releaseVersionValue) < 0) {
-                        releaseVersion = releaseVersionValue
-                        // Показываем опциональное обновление только если нет обязательного
-                        if (!showUpdateDialog) {
-                            showOptionalUpdateDialog = true
+                    if (releaseVersionValue != null) {
+                        val versionComparison = com.rimskiy.shared.utils.VersionUtils.compare(appVersion, releaseVersionValue)
+                        if (versionComparison < 0) {
+                            // Версия на сервере больше текущей
+                            releaseVersion = releaseVersionValue
+                            // Показываем опциональное обновление только если нет обязательного
+                            if (!showUpdateDialog) {
+                                showOptionalUpdateDialog = true
+                            }
+                            return@fold
+                        }
+                    }
+                    
+                    // Автоматическое определение новой версии на основе server_version
+                    // Если release_client_version не указан или равен текущей версии,
+                    // проверяем server_version как потенциальную новую версию
+                    val serverVersion = infoToCheck.server_version
+                    if (serverVersion != null) {
+                        val versionComparison = com.rimskiy.shared.utils.VersionUtils.compare(appVersion, serverVersion)
+                        if (versionComparison < 0) {
+                            // Версия на сервере больше текущей - предлагаем обновление
+                            releaseVersion = serverVersion
+                            // Показываем опциональное обновление только если нет обязательного
+                            if (!showUpdateDialog) {
+                                showOptionalUpdateDialog = true
+                            }
                         }
                     }
                 },

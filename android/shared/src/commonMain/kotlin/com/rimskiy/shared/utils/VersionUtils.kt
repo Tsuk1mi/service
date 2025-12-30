@@ -14,5 +14,31 @@ object VersionUtils {
         }
         return 0
     }
+    
+    /**
+     * Вычисляет следующую версию (увеличивает последний компонент)
+     * Например: "1.0.0" -> "1.0.1", "1.2.3" -> "1.2.4"
+     */
+    fun incrementVersion(version: String): String {
+        val parts = version.split(".")
+        if (parts.isEmpty()) return version
+        
+        val lastIndex = parts.size - 1
+        val lastPart = parts[lastIndex].toIntOrNull() ?: 0
+        val incremented = lastPart + 1
+        
+        val newParts = parts.toMutableList()
+        newParts[lastIndex] = incremented.toString()
+        
+        return newParts.joinToString(".")
+    }
+    
+    /**
+     * Проверяет, является ли версия следующей после текущей (увеличение на 1 в последнем компоненте)
+     */
+    fun isNextVersion(current: String, candidate: String): Boolean {
+        val nextVersion = incrementVersion(current)
+        return compare(candidate, nextVersion) == 0
+    }
 }
 

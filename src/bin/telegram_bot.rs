@@ -187,15 +187,18 @@ async fn main() -> anyhow::Result<()> {
 
     Dispatcher::builder(
         bot,
-        Update::filter_message()
+        dptree::entry()
             .branch(
-                dptree::entry()
-                    .filter_command::<Command>()
-                    .endpoint(handler),
+                Update::filter_message()
+                    .branch(
+                        dptree::entry()
+                            .filter_command::<Command>()
+                            .endpoint(handler),
+                    )
+                    .branch(dptree::endpoint(text_handler)),
             )
-            .branch(dptree::endpoint(text_handler)),
+            .branch(Update::filter_callback_query().endpoint(callback_handler)),
     )
-    .branch(Update::filter_callback_query().endpoint(callback_handler))
     .enable_ctrlc_handler()
     .build()
     .dispatch()
@@ -447,6 +450,7 @@ async fn handle_apk_command(bot: &Bot, msg: &Message, state: &BotState) -> Respo
                         .map(|s| s.to_string())
                         .unwrap_or_else(|| "app-release.apk".to_string());
 
+                    let file_name_clone = file_name.clone();
                     match bot
                         .send_document(
                             msg.chat.id,
@@ -463,7 +467,7 @@ async fn handle_apk_command(bot: &Bot, msg: &Message, state: &BotState) -> Respo
                                     📱 Файл: {}\n\n\
                                     💡 Установите APK файл на ваше Android устройство.\n\n\
                                     ⚠️ Если установка не запускается автоматически, разрешите установку из неизвестных источников в настройках безопасности.",
-                                    file_name
+                                    file_name_clone
                                 ),
                             )
                             .await?;
