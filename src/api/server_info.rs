@@ -15,6 +15,7 @@ async fn get_server_info(State(state): State<AppState>) -> Json<serde_json::Valu
         "port": state.config.server_port,
         "server_version": env!("CARGO_PKG_VERSION"),
         "min_client_version": state.config.min_client_version,
+        "release_client_version": state.config.release_client_version,
         "app_download_url": state.config.app_download_url,
     }))
 }

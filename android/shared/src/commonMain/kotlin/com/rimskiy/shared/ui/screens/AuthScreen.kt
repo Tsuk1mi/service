@@ -7,6 +7,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,19 +43,6 @@ fun AuthScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var receivedCode by remember { mutableStateOf<String?>(null) }
     var phoneError by remember { mutableStateOf<String?>(null) }
-    var showServerDialog by remember { mutableStateOf(false) }
-    // Разносим ввод на IP и порт
-    fun splitHostPort(url: String): Pair<String, String> {
-        val withoutProto = url.substringAfter("://", url)
-        val hostPort = withoutProto.substringBefore("/")
-        val parts = hostPort.split(":")
-        val host = parts.getOrNull(0).orEmpty()
-        val port = parts.getOrNull(1).orEmpty().ifEmpty { "8080" }
-        return host to port
-    }
-    val (initialHost, initialPort) = splitHostPort(currentBaseUrl)
-    var serverIp by remember { mutableStateOf(initialHost) }
-    var serverPort by remember { mutableStateOf(initialPort) }
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -72,70 +61,30 @@ fun AuthScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        if (showServerDialog) {
-            AlertDialog(
-                onDismissRequest = { showServerDialog = false },
-                title = { Text("Сменить сервер") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Текущий: $currentBaseUrl")
-                        OutlinedTextField(
-                            value = serverIp,
-                            onValueChange = { serverIp = it },
-                            label = { Text("IP / домен") },
-                            placeholder = { Text("192.168.1.37") },
-                            singleLine = true
-                        )
-                        OutlinedTextField(
-                            value = serverPort,
-                            onValueChange = { serverPort = it },
-                            label = { Text("Порт") },
-                            placeholder = { Text("8080") },
-                            singleLine = true
-                        )
-                    }
-                },
-                confirmButton = {
-                    TextButton(onClick = {
-                        val host = serverIp.trim()
-                        val port = serverPort.trim().ifEmpty { "8080" }
-                        if (host.isNotEmpty()) {
-                            val newUrl = "http://$host:$port"
-                            // Сбрасываем состояние авторизации и меняем сервер
-                            codeSent = false
-                            code = ""
-                            phone = ""
-                            phoneTextFieldValue = TextFieldValue("")
-                            receivedCode = null
-                            error = null
-                            phoneError = null
-                            onChangeBaseUrl(newUrl)
-                        }
-                        showServerDialog = false
-                    }) {
-                        Text("Сохранить")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showServerDialog = false }) {
-                        Text("Отмена")
-                    }
-                }
-            )
-        }
-
         // Логотип или иконка
-        Icon(
-            imageVector = Icons.Default.Lock,
-            contentDescription = null,
-            modifier = Modifier.size(80.dp),
-            tint = MaterialTheme.colorScheme.primary
-        )
+        ElevatedCard(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer
+            ),
+            modifier = Modifier.size(100.dp)
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = null,
+                    modifier = Modifier.size(56.dp),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+        }
         
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(32.dp))
         
         Text(
-            text = "Авторизация",
+            text = "Добро пожаловать!",
             style = MaterialTheme.typography.headlineLarge,
             color = MaterialTheme.colorScheme.onSurface
         )
@@ -143,27 +92,26 @@ fun AuthScreen(
         Spacer(modifier = Modifier.height(8.dp))
         
         Text(
-            text = "Войдите в свой аккаунт",
-            style = MaterialTheme.typography.bodyMedium,
+            text = "Войдите в свой аккаунт для продолжения",
+            style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(40.dp))
 
         // Карточка с формой авторизации
-        Card(
+        ElevatedCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-            shape = MaterialTheme.shapes.medium,
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surface
             )
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                modifier = Modifier.padding(28.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 if (!codeSent) {
                     // Ввод телефона
@@ -221,20 +169,20 @@ fun AuthScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
-                                modifier = Modifier.padding(12.dp),
+                                modifier = Modifier.padding(16.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Warning,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onErrorContainer,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(24.dp)
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(12.dp))
                                 Text(
                                     text = errorText,
                                     color = MaterialTheme.colorScheme.onErrorContainer,
-                                    style = MaterialTheme.typography.bodySmall
+                                    style = MaterialTheme.typography.bodyMedium
                                 )
                             }
                         }

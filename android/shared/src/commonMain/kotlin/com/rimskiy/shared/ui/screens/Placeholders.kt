@@ -12,11 +12,16 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,16 +59,65 @@ fun BlockNotificationDetailsScreen(
         Column(
             modifier = Modifier
                 .padding(padding)
-                .padding(16.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
                 .fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("Номер: ${block.blocked_plate}", style = MaterialTheme.typography.titleMedium)
-            Text("Заблокировал: ${block.blocker.name ?: block.blocker.telegram ?: "Неизвестно"}")
-            block.blocker_owner_type?.let { Text("Тип владельца: $it") }
-            block.blocker_owner_info?.let { Text("Инфо: $it") }
-            Text("Дата: ${DateUtils.formatDateShort(block.created_at)}")
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Text(
+                            text = "Детали блокировки",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Divider(
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                        thickness = 1.dp
+                    )
+                    
+                    InfoRow("Номер автомобиля", block.blocked_plate.replace("+", ""))
+                    InfoRow("Заблокировал", block.blocker.name ?: block.blocker.telegram ?: "Неизвестно")
+                    block.blocker_owner_type?.let { InfoRow("Тип владельца", it) }
+                    block.blocker_owner_info?.let { 
+                        InfoRow("Информация", it.toString())
+                    }
+                    InfoRow("Дата блокировки", DateUtils.formatDateShort(block.created_at))
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun InfoRow(label: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
@@ -95,16 +149,29 @@ fun CheckMyBlockScreen(
         Column(
             modifier = Modifier
                 .padding(padding)
-                .padding(16.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
                 .fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            OutlinedTextField(
-                value = plate,
-                onValueChange = { plate = it },
-                label = { Text("Номер авто") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search, keyboardType = KeyboardType.Text),
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = "Проверка блокировки",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    OutlinedTextField(
+                        value = plate,
+                        onValueChange = { plate = it },
+                        label = { Text("Номер авто") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search, keyboardType = KeyboardType.Text),
                 keyboardActions = KeyboardActions(
                     onSearch = {
                         scope.launch {
@@ -123,54 +190,104 @@ fun CheckMyBlockScreen(
                             isLoading = false
                         }
                     }
-                ),
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
 
-            Button(
-                onClick = {
-                    scope.launch {
-                        isLoading = true
-                        error = null
-                        result = null
-                        checkBlockUseCase(plate).fold(
-                            onSuccess = { resp ->
-                                result = resp.block
-                                if (!resp.is_blocked) error = "Блокировок не найдено"
-                            },
-                            onFailure = { e -> error = e.message ?: "Ошибка проверки" }
-                        )
-                        isLoading = false
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                isLoading = true
+                                error = null
+                                result = null
+                                checkBlockUseCase(plate).fold(
+                                    onSuccess = { resp ->
+                                        result = resp.block
+                                        if (!resp.is_blocked) error = "Блокировок не найдено"
+                                    },
+                                    onFailure = { e -> error = e.message ?: "Ошибка проверки" }
+                                )
+                                isLoading = false
+                            }
+                        },
+                        enabled = plate.isNotBlank() && !isLoading,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary)
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        Text("Проверить")
                     }
-                },
-                enabled = plate.isNotBlank() && !isLoading,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary)
-                    Spacer(Modifier.width(8.dp))
                 }
-                Text("Проверить")
             }
 
-            error?.let {
-                AssistChip(onClick = {}, label = { Text(it) }, leadingIcon = {
-                    Icon(Icons.Default.Info, contentDescription = null)
-                })
+            error?.let { errorText ->
+                ElevatedCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Text(
+                            text = errorText,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
             }
 
             result?.let { block ->
-                Card(
+                ElevatedCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onNavigateToBlocker(block) },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
                 ) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Номер: ${block.blocked_plate}", style = MaterialTheme.typography.titleMedium)
-                        Text("Заблокировал: ${block.blocker.name ?: block.blocker.telegram ?: "Неизвестно"}")
-                        Text("Дата: ${DateUtils.formatDateShort(block.created_at)}")
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Text(
+                                text = "Блокировка найдена",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                        Divider(
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f),
+                            thickness = 1.dp
+                        )
+                        InfoRow("Номер", block.blocked_plate.replace("+", ""))
+                        InfoRow("Заблокировал", block.blocker.name ?: block.blocker.telegram ?: "Неизвестно")
+                        InfoRow("Дата", DateUtils.formatDateShort(block.created_at))
                     }
                 }
             }
@@ -239,8 +356,8 @@ fun BlockNotificationScreen(
             }
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 items(notifications) { n ->
                     NotificationItem(
@@ -260,24 +377,82 @@ fun BlockNotificationScreen(
 
 @Composable
 private fun NotificationItem(notification: NotificationResponse, onMarkRead: () -> Unit) {
-    Card(
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (notification.read) MaterialTheme.colorScheme.surfaceVariant
             else MaterialTheme.colorScheme.primaryContainer
         )
     ) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Default.Notifications, contentDescription = null)
-                Text(notification.title ?: "Уведомление", style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.weight(1f))
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Notifications,
+                    contentDescription = null,
+                    tint = if (notification.read)
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    else
+                        MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(24.dp)
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = notification.title ?: "Уведомление",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = if (notification.read)
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        else
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    notification.message?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (notification.read)
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                            else
+                                MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
+                        )
+                    }
+                }
                 if (!notification.read) {
-                    TextButton(onClick = onMarkRead) { Text("Прочесть") }
+                    OutlinedButton(onClick = onMarkRead) {
+                        Text("Прочесть")
+                    }
                 }
             }
-            notification.message?.let { Text(it) }
-            notification.created_at?.let { Text(DateUtils.formatDateShort(it), style = MaterialTheme.typography.bodySmall) }
+            notification.created_at?.let {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Schedule,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = if (notification.read)
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        else
+                            MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                    )
+                    Text(
+                        text = DateUtils.formatDateShort(it),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (notification.read)
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        else
+                            MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                    )
+                }
+            }
         }
     }
 }
@@ -322,7 +497,33 @@ fun UserPlatesSection(
         if (isLoading) {
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         }
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            error?.let { errorText ->
+                ElevatedCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Text(
+                            text = errorText,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
+            }
 
         OutlinedTextField(
             value = newPlate,
@@ -391,38 +592,71 @@ fun UserPlatesSection(
             }
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            plates.forEach { plate ->
-                PlateItem(
-                    plate = plate,
-                    onUpdateDeparture = { newTime ->
-                        scope.launch {
-                            isLoading = true
-                            updateUserPlateDepartureUseCase(plate.id, if (newTime.isBlank()) null else newTime)
-                                .fold(
-                                    onSuccess = { load() },
-                                    onFailure = { e -> error = e.message ?: "Ошибка сохранения времени" }
-                                )
-                            isLoading = false
-                        }
-                    },
-                    onSetPrimary = {
-                        scope.launch {
-                            isLoading = true
-                            setPrimaryPlateUseCase(plate.id)
-                            load()
-                            isLoading = false
-                        }
-                    },
-                    onDelete = {
-                        scope.launch {
-                            isLoading = true
-                            deleteUserPlateUseCase(plate.id)
-                            load()
-                            isLoading = false
-                        }
-                    }
+        if (plates.isEmpty() && !isLoading) {
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                 )
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.padding(24.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DirectionsCar,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Нет добавленных номеров",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Добавьте номер автомобиля выше",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                plates.forEach { plate ->
+                    PlateItem(
+                        plate = plate,
+                        onUpdateDeparture = { newTime ->
+                            scope.launch {
+                                isLoading = true
+                                updateUserPlateDepartureUseCase(plate.id, if (newTime.isBlank()) null else newTime)
+                                    .fold(
+                                        onSuccess = { load() },
+                                        onFailure = { e -> error = e.message ?: "Ошибка сохранения времени" }
+                                    )
+                                isLoading = false
+                            }
+                        },
+                        onSetPrimary = {
+                            scope.launch {
+                                isLoading = true
+                                setPrimaryPlateUseCase(plate.id)
+                                load()
+                                isLoading = false
+                            }
+                        },
+                        onDelete = {
+                            scope.launch {
+                                isLoading = true
+                                deleteUserPlateUseCase(plate.id)
+                                load()
+                                isLoading = false
+                            }
+                        }
+                    )
+                }
             }
         }
     }
@@ -439,41 +673,96 @@ private fun PlateItem(
     var departureError by remember { mutableStateOf<String?>(null) }
     var showTimePicker by remember { mutableStateOf(false) }
 
-    Card(
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (plate.is_primary) MaterialTheme.colorScheme.primaryContainer
             else MaterialTheme.colorScheme.surface
         )
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(plate.plate, style = MaterialTheme.typography.titleMedium)
-                Text(if (plate.is_primary) "Основной" else "Дополнительный", style = MaterialTheme.typography.bodySmall)
-                if (plate.departure_time != null) {
-                    Text("Время выезда: ${plate.departure_time}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-                }
-            }
-            IconButton(onClick = onSetPrimary, enabled = !plate.is_primary) {
-                Icon(Icons.Default.Info, contentDescription = "Сделать основным")
-            }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = "Удалить")
-            }
-        }
-        Divider()
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.DirectionsCar,
+                    contentDescription = null,
+                    tint = if (plate.is_primary)
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    else
+                        MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(28.dp)
+                )
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = plate.plate,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = if (plate.is_primary)
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        else
+                            MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = if (plate.is_primary) "Основной номер" else "Дополнительный номер",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (plate.is_primary)
+                            MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (plate.departure_time != null) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Schedule,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = if (plate.is_primary)
+                                    MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                else
+                                    MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Выезд: ${plate.departure_time}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (plate.is_primary)
+                                    MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                else
+                                    MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    IconButton(onClick = onSetPrimary, enabled = !plate.is_primary) {
+                        Icon(Icons.Default.Check, contentDescription = "Сделать основным")
+                    }
+                    IconButton(onClick = onDelete) {
+                        Icon(Icons.Default.Delete, contentDescription = "Удалить")
+                    }
+                }
+            }
+            Divider(
+                color = if (plate.is_primary)
+                    MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
+                else
+                    MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                thickness = 1.dp
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
             // Улучшенная карточка выбора времени
             Card(
                 modifier = Modifier
@@ -562,6 +851,7 @@ private fun PlateItem(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Сохранить время")
+            }
             }
         }
     }

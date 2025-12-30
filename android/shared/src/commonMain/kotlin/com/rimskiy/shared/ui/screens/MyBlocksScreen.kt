@@ -141,7 +141,7 @@ fun MyBlocksScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
                 .pointerInput(Unit) {
                     detectTapGestures(onTap = { hideKeyboard() })
                 },
@@ -176,14 +176,16 @@ fun MyBlocksScreen(
             }
 
             // Карточка для добавления новой блокировки
-            Card(
+            ElevatedCard(
                 modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                shape = MaterialTheme.shapes.medium
+                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -192,16 +194,21 @@ fun MyBlocksScreen(
                             Icon(
                                 imageVector = Icons.Default.Add,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(28.dp)
                             )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
                         Text(
                             text = "Добавить блокировку",
-                            style = MaterialTheme.typography.titleMedium
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                     
-                    Divider()
+                    Divider(
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                        thickness = 1.dp
+                    )
                     
                     OutlinedTextField(
                         value = newPlate,
@@ -359,14 +366,14 @@ fun MyBlocksScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Button(
-                                onClick = {
-                                    hideKeyboard()
-                                    val normalizedPlate = PlateUtils.normalizePlate(newPlate)
-                                    if (!PlateUtils.validatePlate(normalizedPlate)) {
-                                        plateError = "Неверный формат номера"
-                                        return@Button
-                                    }
-                                    isLoading = true
+                            onClick = {
+                                hideKeyboard()
+                                val normalizedPlate = PlateUtils.normalizePlate(newPlate)
+                                if (!PlateUtils.validatePlate(normalizedPlate)) {
+                                    plateError = "Неверный формат номера"
+                                    return@Button
+                                }
+                                isLoading = true
                                 error = null
                                 plateError = null
                                 
@@ -513,39 +520,56 @@ fun MyBlocksScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator()
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(48.dp),
+                            strokeWidth = 4.dp
+                        )
+                        Text(
+                            text = "Загрузка блокировок...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             } else if (blocks.isEmpty() && !isLoading) {
-                Card(
+                Box(
                     modifier = Modifier.fillMaxSize(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
+                    ElevatedCard(
+                        modifier = Modifier
+                            .fillMaxWidth(0.85f)
+                            .padding(24.dp),
+                        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp),
+                    colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                    )
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
                             modifier = Modifier.padding(32.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Info,
                                 contentDescription = null,
-                                modifier = Modifier.size(64.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                modifier = Modifier.size(80.dp),
+                                tint = MaterialTheme.colorScheme.primary
                             )
                             Text(
                                 text = "Нет блокировок",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Добавьте номер автомобиля выше",
+                                text = "Добавьте номер автомобиля выше, чтобы создать блокировку",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 16.dp)
                             )
                         }
                     }
@@ -560,17 +584,16 @@ fun MyBlocksScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(blocks) { block ->
-                        Card(
+                        ElevatedCard(
                             modifier = Modifier.fillMaxWidth(),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                            shape = MaterialTheme.shapes.medium,
+                            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp),
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surface
                             )
                         ) {
                             Column(
-                                modifier = Modifier.padding(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                                modifier = Modifier.padding(20.dp),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -614,12 +637,12 @@ fun MyBlocksScreen(
                                                     contentDescription = null,
                                                     modifier = Modifier.size(14.dp),
                                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                                Text(
+                                            )
+                                            Text(
                                                     text = DateUtils.formatDateShort(block.created_at),
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
                                             }
                                         }
                                     }
@@ -645,22 +668,22 @@ fun MyBlocksScreen(
                                     ),
                                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                                 ) {
-                                    Row(
+                                Row(
                                         modifier = Modifier.padding(12.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
+                                    verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Info,
-                                            contentDescription = null,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Info,
+                                        contentDescription = null,
                                             tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                        Text(
-                                            text = "Если владелец указал время выезда, уведомление отправится автоматически.",
-                                            style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = "Если владелец указал время выезда, уведомление отправится автоматически.",
+                                        style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSecondaryContainer
-                                        )
+                                    )
                                     }
                                 }
                                 
@@ -709,28 +732,77 @@ fun MyBlocksScreen(
                 Icon(
                     imageVector = Icons.Default.Delete,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(32.dp)
                 )
             },
-            title = { Text("Удалить блокировку?") },
-            text = { Text("Вы уверены, что хотите удалить блокировку для номера ${block.blocked_plate.replace("+", "")}?") },
+            title = { 
+                Text(
+                    text = "Удалить блокировку?",
+                    style = MaterialTheme.typography.titleLarge
+                )
+            },
+            text = { 
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Вы уверены, что хотите удалить блокировку?",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    ElevatedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DirectionsCar,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = block.blocked_plate.replace("+", ""),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+            },
             confirmButton = {
-                TextButton(
+                Button(
                     onClick = {
                         scope.launch {
                             deleteBlock(block)
                             showDeleteDialog = null
                         }
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
                 ) {
-                    Text("Удалить", color = MaterialTheme.colorScheme.error)
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Удалить")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = null }) {
+                OutlinedButton(onClick = { showDeleteDialog = null }) {
                     Text("Отмена")
                 }
-            }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = MaterialTheme.shapes.large
         )
     }
 

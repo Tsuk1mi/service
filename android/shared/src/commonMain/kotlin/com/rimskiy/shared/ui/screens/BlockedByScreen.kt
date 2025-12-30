@@ -80,70 +80,87 @@ fun BlockedByScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Сообщение об ошибке
             error?.let { errorText ->
-                Card(
+                ElevatedCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.errorContainer
-                    ),
-                    modifier = Modifier.fillMaxWidth()
+                    )
                 ) {
                     Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Warning,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onErrorContainer,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(24.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = errorText,
                             color = MaterialTheme.colorScheme.onErrorContainer,
-                            style = MaterialTheme.typography.bodySmall
+                            style = MaterialTheme.typography.bodyMedium
                         )
                     }
                 }
             }
-            
+
             if (isLoading && blocks.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator()
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(48.dp),
+                            strokeWidth = 4.dp
+                        )
+                        Text(
+                            text = "Загрузка блокировок...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             } else if (blocks.isEmpty()) {
-                Card(
+                Box(
                     modifier = Modifier.fillMaxSize(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
+                    ElevatedCard(
+                        modifier = Modifier
+                            .fillMaxWidth(0.85f)
+                            .padding(24.dp),
+                        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp),
+                    colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                    )
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
                             modifier = Modifier.padding(32.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.CheckCircle,
                                 contentDescription = null,
-                                modifier = Modifier.size(64.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                modifier = Modifier.size(80.dp),
+                                tint = MaterialTheme.colorScheme.primary
                             )
                             Text(
                                 text = "Вас никто не перекрыл",
-                                style = MaterialTheme.typography.titleLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = "Когда кто-то перекроет ваш автомобиль, он появится здесь",
@@ -164,17 +181,16 @@ fun BlockedByScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(blocks) { block ->
-                        Card(
+                        ElevatedCard(
                             modifier = Modifier.fillMaxWidth(),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                            shape = MaterialTheme.shapes.medium,
+                            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.15f)
+                                containerColor = MaterialTheme.colorScheme.surface
                             )
                         ) {
                             Column(
-                                modifier = Modifier.padding(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                                modifier = Modifier.padding(20.dp),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
                                 // Заголовок с предупреждением
                                 Row(
@@ -190,13 +206,13 @@ fun BlockedByScreen(
                                         Box(
                                             modifier = Modifier.fillMaxSize(),
                                             contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Warning,
-                                                contentDescription = null,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = null,
                                                 tint = MaterialTheme.colorScheme.onErrorContainer,
                                                 modifier = Modifier.size(28.dp)
-                                            )
+                                    )
                                         }
                                     }
                                     Spacer(modifier = Modifier.width(12.dp))
@@ -215,7 +231,7 @@ fun BlockedByScreen(
                                                 contentDescription = null,
                                                 modifier = Modifier.size(14.dp),
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
+                                        )
                                             Text(
                                                 text = DateUtils.formatDateShort(block.created_at),
                                                 style = MaterialTheme.typography.bodySmall,
@@ -316,21 +332,21 @@ fun BlockedByScreen(
                                                     text = block.blocker.plate.replace("+", ""),
                                                     style = MaterialTheme.typography.titleMedium,
                                                     color = MaterialTheme.colorScheme.onSurface
-                                                )
-                                                block.blocker.name?.let { name ->
+                                    )
+                                    block.blocker.name?.let { name ->
                                                     Text(
                                                         text = name,
                                                         style = MaterialTheme.typography.bodyMedium,
                                                         color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                    )
-                                                }
-                                            }
+                                        )
+                                    }
+                                }
                                         }
                                     }
                                 }
                                 
                                 // Время выезда
-                                block.blocker.departure_time?.let { time ->
+                                    block.blocker.departure_time?.let { time ->
                                     Card(
                                         modifier = Modifier.fillMaxWidth(),
                                         colors = CardDefaults.cardColors(
@@ -358,16 +374,16 @@ fun BlockedByScreen(
                                                     style = MaterialTheme.typography.labelMedium,
                                                     color = MaterialTheme.colorScheme.onPrimaryContainer
                                                 )
-                                                Text(
+                                            Text(
                                                     text = time,
                                                     style = MaterialTheme.typography.titleMedium,
                                                     color = MaterialTheme.colorScheme.onPrimaryContainer
-                                                )
-                                            }
+                                            )
                                         }
                                     }
                                 }
-                                
+                                }
+
                                 // Кнопки связи
                                 if (block.blocker.phone != null || block.blocker.telegram != null) {
                                     Divider()

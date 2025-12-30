@@ -8,6 +8,7 @@ data class ServerInfoResponse(
     val port: Int? = null,
     val server_version: String? = null,
     val min_client_version: String? = null,
+    val release_client_version: String? = null,
     val app_download_url: String? = null
 )
 

@@ -10,7 +10,8 @@ android {
     compileSdk = 34
 
     val buildNumber = System.getenv("BUILD_NUMBER")?.toIntOrNull() ?: 1
-    val versionNameComputed = "1.0.$buildNumber"
+    // Версия может быть переопределена через переменную окружения VERSION_NAME
+    val versionNameComputed = System.getenv("VERSION_NAME") ?: "1.0.$buildNumber"
 
     signingConfigs {
         create("release") {

@@ -7,6 +7,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -15,6 +17,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 
 /**
  * Парсит строку времени в формате HH:MM в часы и минуты
@@ -42,6 +46,7 @@ fun formatTime(hour: Int, minute: Int): String {
 /**
  * Диалог выбора времени с улучшенным UI
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TimePickerDialog(
     initialTime: String?,
@@ -59,10 +64,11 @@ fun TimePickerDialog(
     val scrollState = rememberScrollState()
 
     Dialog(onDismissRequest = onDismiss) {
-        Card(
+        ElevatedCard(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxWidth(0.9f)
                 .padding(16.dp),
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 8.dp),
             shape = MaterialTheme.shapes.large,
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surface
@@ -70,9 +76,9 @@ fun TimePickerDialog(
         ) {
             Column(
                 modifier = Modifier
-                    .padding(24.dp)
+                    .padding(16.dp)
                     .verticalScroll(scrollState),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
                     text = title,
@@ -81,37 +87,169 @@ fun TimePickerDialog(
 
                 Divider()
 
-                // Быстрый выбор популярных времен
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Быстрый выбор популярных времен - компактный layout
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
                         text = "Быстрый выбор",
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        quickTimes.forEach { time ->
+                            val (h, m) = parseTime(time)
+                            AssistChip(
+                                onClick = {
+                                    selectedHour = h
+                                    selectedMinute = m
+                                },
+                                label = { Text(time, style = MaterialTheme.typography.bodySmall) },
+                                colors = AssistChipDefaults.assistChipColors(
+                                    containerColor = if (selectedHour == h && selectedMinute == m)
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    else
+                                        MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            )
+                        }
+                    }
+                }
+
+                Divider()
+
+                // Ручной выбор времени - компактный layout
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Ручной выбор",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    // Компактный выбор часов и минут в одной строке
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        quickTimes.chunked(3).forEach { rowTimes ->
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                        // Выбор часов
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = "Часы",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                rowTimes.forEach { time ->
-                                    val (h, m) = parseTime(time)
-                                    AssistChip(
-                                        onClick = {
-                                            selectedHour = h
-                                            selectedMinute = m
-                                        },
-                                        label = { Text(time) },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = AssistChipDefaults.assistChipColors(
-                                            containerColor = if (selectedHour == h && selectedMinute == m)
-                                                MaterialTheme.colorScheme.primaryContainer
-                                            else
-                                                MaterialTheme.colorScheme.surfaceVariant
-                                        )
+                                IconButton(
+                                    onClick = {
+                                        selectedHour = (selectedHour - 1).coerceIn(0, 23)
+                                    },
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Remove,
+                                        contentDescription = "Уменьшить час",
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                
+                                OutlinedTextField(
+                                    value = selectedHour.toString().padStart(2, '0'),
+                                    onValueChange = { value ->
+                                        val newHour = value.toIntOrNull()?.coerceIn(0, 23) ?: selectedHour
+                                        selectedHour = newHour
+                                    },
+                                    modifier = Modifier.width(60.dp),
+                                    singleLine = true,
+                                    textStyle = TextStyle(
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                )
+                                
+                                IconButton(
+                                    onClick = {
+                                        selectedHour = (selectedHour + 1).coerceIn(0, 23)
+                                    },
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Увеличить час",
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+                        
+                        // Разделитель
+                        Text(
+                            text = ":",
+                            style = MaterialTheme.typography.headlineMedium,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                        
+                        // Выбор минут
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = "Минуты",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        selectedMinute = ((selectedMinute - 5) + 60) % 60
+                                    },
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Remove,
+                                        contentDescription = "Уменьшить минуты",
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                
+                                OutlinedTextField(
+                                    value = selectedMinute.toString().padStart(2, '0'),
+                                    onValueChange = { value ->
+                                        val newMinute = value.toIntOrNull()?.coerceIn(0, 59) ?: selectedMinute
+                                        selectedMinute = newMinute
+                                    },
+                                    modifier = Modifier.width(60.dp),
+                                    singleLine = true,
+                                    textStyle = TextStyle(
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                )
+                                
+                                IconButton(
+                                    onClick = {
+                                        selectedMinute = (selectedMinute + 5) % 60
+                                    },
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Увеличить минуты",
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
                             }
@@ -119,143 +257,28 @@ fun TimePickerDialog(
                     }
                 }
 
-                Divider()
-
-                // Ручной выбор времени
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text(
-                        text = "Ручной выбор",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    
-                    // Выбор часов
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "Часы",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(
-                                onClick = {
-                                    selectedHour = (selectedHour - 1).coerceIn(0, 23)
-                                },
-                                modifier = Modifier.size(56.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Remove,
-                                    contentDescription = "Уменьшить час",
-                                    modifier = Modifier.size(28.dp)
-                                )
-                            }
-                            
-                            OutlinedTextField(
-                                value = selectedHour.toString().padStart(2, '0'),
-                                onValueChange = { value ->
-                                    val newHour = value.toIntOrNull()?.coerceIn(0, 23) ?: selectedHour
-                                    selectedHour = newHour
-                                },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .width(100.dp),
-                                singleLine = true
-                            )
-                            
-                            IconButton(
-                                onClick = {
-                                    selectedHour = (selectedHour + 1).coerceIn(0, 23)
-                                },
-                                modifier = Modifier.size(56.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = "Увеличить час",
-                                    modifier = Modifier.size(28.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    // Выбор минут
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "Минуты",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(
-                                onClick = {
-                                    selectedMinute = ((selectedMinute - 5) + 60) % 60
-                                },
-                                modifier = Modifier.size(56.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Remove,
-                                    contentDescription = "Уменьшить минуты",
-                                    modifier = Modifier.size(28.dp)
-                                )
-                            }
-                            
-                            OutlinedTextField(
-                                value = selectedMinute.toString().padStart(2, '0'),
-                                onValueChange = { value ->
-                                    val newMinute = value.toIntOrNull()?.coerceIn(0, 59) ?: selectedMinute
-                                    selectedMinute = newMinute
-                                },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .width(100.dp),
-                                singleLine = true
-                            )
-                            
-                            IconButton(
-                                onClick = {
-                                    selectedMinute = (selectedMinute + 5) % 60
-                                },
-                                modifier = Modifier.size(56.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = "Увеличить минуты",
-                                    modifier = Modifier.size(28.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Предпросмотр времени
+                // Предпросмотр времени - компактный
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
                     )
                 ) {
-                    Column(
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(20.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Выбранное время",
+                            text = "Выбрано:",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = formatTime(selectedHour, selectedMinute),
-                            style = MaterialTheme.typography.displayMedium,
+                            style = MaterialTheme.typography.headlineMedium,
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
                             fontWeight = FontWeight.Bold
                         )

@@ -16,6 +16,35 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Получаем всю историю для тегов
+      
+      - name: Calculate version
+        id: version
+        run: |
+          # Получаем последний тег
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Last tag: $LAST_TAG"
+          
+          # Убираем префикс 'v' если есть
+          VERSION=${LAST_TAG#v}
+          echo "Version from tag: $VERSION"
+          
+          # Если тега нет или версия пустая, используем дефолтную
+          if [ -z "$VERSION" ] || [ "$VERSION" = "0.0.0" ]; then
+            VERSION="0.1.0"
+          fi
+          
+          # Сохраняем в outputs
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+      
+      - name: Update Cargo.toml version
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
+          echo "Updated Cargo.toml version to $VERSION"
+          cat Cargo.toml | grep "^version"
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -237,6 +266,59 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Получаем всю историю для тегов
+      
+      - name: Calculate version
+        id: version
+        run: |
+          # Получаем последний тег
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Last tag: $LAST_TAG"
+          
+          # Убираем префикс 'v' если есть
+          VERSION=${LAST_TAG#v}
+          echo "Version from tag: $VERSION"
+          
+          # Если тега нет или версия пустая, используем дефолтную
+          if [ -z "$VERSION" ] || [ "$VERSION" = "0.0.0" ]; then
+            VERSION="1.0.0"
+          fi
+          
+          # Разбиваем версию на части
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          
+          # Увеличиваем patch версию на основе номера сборки
+          PATCH=$((PATCH + ${{ github.run_number }} - 1))
+          
+          # Формируем финальную версию
+          FINAL_VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "Final version: $FINAL_VERSION"
+          
+          # Сохраняем в outputs
+          echo "version=$FINAL_VERSION" >> $GITHUB_OUTPUT
+          echo "version_code=${{ github.run_number }}" >> $GITHUB_OUTPUT
+          echo "version_name=$FINAL_VERSION" >> $GITHUB_OUTPUT
+          
+          # Выводим для отладки
+          echo "Version: $FINAL_VERSION"
+          echo "Version Code: ${{ github.run_number }}"
+      
+      - name: Update Android version
+        working-directory: android/app
+        run: |
+          VERSION_NAME="${{ steps.version.outputs.version_name }}"
+          VERSION_CODE="${{ steps.version.outputs.version_code }}"
+          
+          # Обновляем build.gradle.kts
+          # Заменяем строку с versionNameComputed, учитывая что может быть System.getenv
+          sed -i "s|val versionNameComputed = System.getenv(\"VERSION_NAME\") ?: \".*\"|val versionNameComputed = System.getenv(\"VERSION_NAME\") ?: \"$VERSION_NAME\"|" build.gradle.kts
+          # Обновляем versionCode
+          sed -i "s|versionCode = buildNumber|versionCode = $VERSION_CODE|" build.gradle.kts
+          
+          echo "Updated version to $VERSION_NAME (code: $VERSION_CODE)"
+          echo "Verifying changes:"
+          grep -E "(versionNameComputed|versionCode)" build.gradle.kts || true
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -275,14 +357,25 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+          BUILD_NUMBER: ${{ steps.version.outputs.version_code }}
         run: ./gradlew assembleRelease --no-daemon
 
+      - name: Rename APK with version
+        working-directory: android/app/build/outputs/apk/release
+        run: |
+          VERSION_NAME="${{ steps.version.outputs.version_name }}"
+          if [ -f app-release.apk ]; then
+            mv app-release.apk "app-release-v${VERSION_NAME}.apk"
+            echo "Renamed APK to app-release-v${VERSION_NAME}.apk"
+          fi
+      
       - name: Upload release APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
-          path: android/app/build/outputs/apk/release/app-release.apk
+          path: android/app/build/outputs/apk/release/*.apk
           retention-days: 30
 
       - name: Deploy APK to server (optional)
@@ -299,6 +392,23 @@ jobs:
           ssh-keyscan $HOST >> ~/.ssh/known_hosts
 
           DEST=${DEPLOY_PATH:-/var/www/html/apk}
+          VERSION_NAME="${{ steps.version.outputs.version_name }}"
           ssh $USER@$HOST "mkdir -p $DEST"
-          scp android/app/build/outputs/apk/release/app-release.apk $USER@$HOST:$DEST/app-release.apk
-          echo "APK deployed successfully to $DEST"
+          
+          # Находим APK файл с версией
+          APK_FILE=$(find android/app/build/outputs/apk/release -name "app-release-v*.apk" | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            # Если файл с версией не найден, используем стандартный
+            APK_FILE="android/app/build/outputs/apk/release/app-release.apk"
+          fi
+          
+          if [ -f "$APK_FILE" ]; then
+            scp "$APK_FILE" $USER@$HOST:$DEST/app-release-v${VERSION_NAME}.apk
+            # Также копируем как app-release.apk для прямого доступа
+            ssh $USER@$HOST "cp $DEST/app-release-v${VERSION_NAME}.apk $DEST/app-release.apk"
+            echo "APK deployed successfully to $DEST (version: $VERSION_NAME)"
+          else
+            echo "Error: APK file not found: $APK_FILE"
+            ls -la android/app/build/outputs/apk/release/ || true
+            exit 1
+          fi

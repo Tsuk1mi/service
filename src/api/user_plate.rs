@@ -1,7 +1,7 @@
 use axum::{
     extract::{Extension, Path, State},
     response::Json,
-    routing::{delete, get, post, Router},
+    routing::{delete, get, patch, post, Router},
 };
 use uuid::Uuid;
 
@@ -20,7 +20,7 @@ pub fn user_plate_router() -> Router<AppState> {
         .route("/", post(create_user_plate))
         .route("/", get(get_user_plates))
         .route("/:id/primary", post(set_primary_plate))
-        .route("/:id", post(update_user_plate))
+        .route("/:id", patch(update_user_plate))
         .route("/:id", delete(delete_user_plate))
 }
 
