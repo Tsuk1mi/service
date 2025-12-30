@@ -112,9 +112,42 @@ jobs:
         if: ${{ env.HOST != '' && env.USER != '' && env.SSH_KEY != '' }}
         run: |
           mkdir -p ~/.ssh
-          echo "$SSH_KEY" > ~/.ssh/rimskiy_ci
-          chmod 600 ~/.ssh/rimskiy_ci
-          ssh-keyscan "$HOST" >> ~/.ssh/known_hosts
+          chmod 700 ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          
+          # Проверяем формат SSH ключа
+          echo "Checking SSH key format..."
+          if ! head -n 1 ~/.ssh/id_rsa | grep -qE "BEGIN.*PRIVATE KEY"; then
+            echo "⚠️  Warning: SSH key might be in wrong format"
+            echo "First line of key:"
+            head -n 1 ~/.ssh/id_rsa
+            echo "Key should start with: -----BEGIN RSA PRIVATE KEY----- or -----BEGIN OPENSSH PRIVATE KEY-----"
+          else
+            echo "✅ SSH key format looks correct"
+          fi
+          
+          # Добавляем хост в known_hosts
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null || ssh-keyscan "$HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          
+          # Тестируем подключение
+          echo "Testing SSH connection to $USER@$HOST..."
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa "$USER@$HOST" "echo 'SSH connection successful'" || {
+            echo "❌ SSH connection test failed"
+            echo ""
+            echo "Troubleshooting steps:"
+            echo "1. Verify SSH key is correctly added to GitHub Secret 'DEPLOY_KEY'"
+            echo "2. Ensure public key is added to ~/.ssh/authorized_keys on server"
+            echo "3. Check that user '$USER' exists on server"
+            echo "4. Verify SSH service is running: sudo systemctl status sshd"
+            echo "5. Check server logs: sudo tail -f /var/log/auth.log"
+            echo ""
+            echo "To add public key to server, run on your local machine:"
+            echo "  ssh-copy-id -i ~/.ssh/id_rsa.pub $USER@$HOST"
+            echo "Or manually add the public key to ~/.ssh/authorized_keys on server"
+            exit 1
+          }
+          echo "✅ SSH connection successful"
 
       - name: Upload binaries and restart services
         if: ${{ env.HOST != '' && env.USER != '' && env.SSH_KEY != '' }}
@@ -133,15 +166,15 @@ jobs:
           # Upload main service binary
           echo "=== Uploading main service binary ==="
           if [ -f artifacts/rimskiy_service ]; then
-            scp artifacts/rimskiy_service "$USER@$HOST:/tmp/rimskiy_service"
-            ssh "$USER@$HOST" "sudo mkdir -p $DEST_PATH && sudo mv /tmp/rimskiy_service $DEST_PATH/rimskiy_service && sudo chmod +x $DEST_PATH/rimskiy_service"
+            scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no artifacts/rimskiy_service "$USER@$HOST:/tmp/rimskiy_service"
+            ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo mkdir -p $DEST_PATH && sudo mv /tmp/rimskiy_service $DEST_PATH/rimskiy_service && sudo chmod +x $DEST_PATH/rimskiy_service"
             echo "Main service binary deployed"
             
             # Restart main service
             echo "Restarting main service: $SERVICE"
-            ssh "$USER@$HOST" "sudo systemctl restart $SERVICE || echo 'Warning: Failed to restart $SERVICE'"
+            ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo systemctl restart $SERVICE || echo 'Warning: Failed to restart $SERVICE'"
             sleep 2
-            ssh "$USER@$HOST" "sudo systemctl status $SERVICE --no-pager -l || true"
+            ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo systemctl status $SERVICE --no-pager -l || true"
             echo "Main service restarted"
           else
             echo "Error: rimskiy_service binary not found in artifacts"
@@ -152,16 +185,16 @@ jobs:
           echo "=== Deploying Telegram bot ==="
           if [ -f artifacts/telegram_bot ]; then
             echo "Uploading telegram bot binary..."
-            scp artifacts/telegram_bot "$USER@$HOST:/tmp/telegram_bot"
-            ssh "$USER@$HOST" "sudo mkdir -p $DEST_PATH && sudo mv /tmp/telegram_bot $DEST_PATH/telegram_bot && sudo chmod +x $DEST_PATH/telegram_bot"
+            scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no artifacts/telegram_bot "$USER@$HOST:/tmp/telegram_bot"
+            ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo mkdir -p $DEST_PATH && sudo mv /tmp/telegram_bot $DEST_PATH/telegram_bot && sudo chmod +x $DEST_PATH/telegram_bot"
             echo "Telegram bot binary deployed to $DEST_PATH/telegram_bot"
             
             # Verify binary exists and is executable
-            ssh "$USER@$HOST" "ls -lh $DEST_PATH/telegram_bot && file $DEST_PATH/telegram_bot || echo 'Warning: Binary verification failed'"
+            ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "ls -lh $DEST_PATH/telegram_bot && file $DEST_PATH/telegram_bot || echo 'Warning: Binary verification failed'"
             
             # Check if telegram bot service exists
             echo "Checking if telegram bot service exists: $TELEGRAM_SERVICE"
-            SERVICE_EXISTS=$(ssh "$USER@$HOST" "sudo systemctl list-unit-files | grep -c $TELEGRAM_SERVICE || echo '0'")
+            SERVICE_EXISTS=$(ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo systemctl list-unit-files | grep -c $TELEGRAM_SERVICE || echo '0'")
             
             if [ "$SERVICE_EXISTS" != "0" ]; then
               echo "Telegram bot service found: $TELEGRAM_SERVICE"
@@ -169,39 +202,39 @@ jobs:
               # Проверяем конфигурацию сервиса и исправляем если нужно
               echo "Checking service configuration..."
               SERVICE_FILE="/etc/systemd/system/$TELEGRAM_SERVICE.service"
-              CURRENT_USER=$(ssh "$USER@$HOST" "whoami")
+              CURRENT_USER=$(ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "whoami")
               
               # Проверяем, правильно ли настроен ExecStart
-              EXEC_START=$(ssh "$USER@$HOST" "sudo grep '^ExecStart=' $SERVICE_FILE | cut -d'=' -f2-" || echo "")
+              EXEC_START=$(ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo grep '^ExecStart=' $SERVICE_FILE | cut -d'=' -f2-" || echo "")
               if [ -z "$EXEC_START" ] || [ "$EXEC_START" != "$DEST_PATH/telegram_bot" ]; then
                 echo "Fixing ExecStart in service file..."
-                ssh "$USER@$HOST" "sudo sed -i 's|^ExecStart=.*|ExecStart=$DEST_PATH/telegram_bot|' $SERVICE_FILE || true"
+                ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo sed -i 's|^ExecStart=.*|ExecStart=$DEST_PATH/telegram_bot|' $SERVICE_FILE || true"
               fi
               
               # Проверяем, есть ли WorkingDirectory
-              if ! ssh "$USER@$HOST" "sudo grep -q '^WorkingDirectory=' $SERVICE_FILE"; then
+              if ! ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo grep -q '^WorkingDirectory=' $SERVICE_FILE"; then
                 echo "Adding WorkingDirectory to service file..."
-                ssh "$USER@$HOST" "sudo sed -i '/^\[Service\]/a WorkingDirectory=$DEST_PATH' $SERVICE_FILE || true"
+                ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo sed -i '/^\[Service\]/a WorkingDirectory=$DEST_PATH' $SERVICE_FILE || true"
               fi
               
               # Проверяем, есть ли EnvironmentFile
-              if ! ssh "$USER@$HOST" "sudo grep -q '^EnvironmentFile=' $SERVICE_FILE"; then
+              if ! ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo grep -q '^EnvironmentFile=' $SERVICE_FILE"; then
                 echo "Adding EnvironmentFile to service file..."
-                ssh "$USER@$HOST" "sudo sed -i '/^WorkingDirectory=/a EnvironmentFile=-$DEST_PATH/.env' $SERVICE_FILE || true"
+                ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo sed -i '/^WorkingDirectory=/a EnvironmentFile=-$DEST_PATH/.env' $SERVICE_FILE || true"
               fi
               
               # Проверяем User
-              if ! ssh "$USER@$HOST" "sudo grep -q '^User=' $SERVICE_FILE"; then
+              if ! ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo grep -q '^User=' $SERVICE_FILE"; then
                 echo "Adding User to service file..."
-                ssh "$USER@$HOST" "sudo sed -i '/^\[Service\]/a User=$CURRENT_USER' $SERVICE_FILE || true"
+                ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo sed -i '/^\[Service\]/a User=$CURRENT_USER' $SERVICE_FILE || true"
               fi
               
               # Reload systemd daemon (в случае обновления конфигурации)
-              ssh "$USER@$HOST" "sudo systemctl daemon-reload"
+              ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo systemctl daemon-reload"
               
               # Проверяем наличие .env файла
               echo "Checking .env file..."
-              if ! ssh "$USER@$HOST" "sudo test -f $DEST_PATH/.env"; then
+              if ! ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo test -f $DEST_PATH/.env"; then
                 echo "⚠️  WARNING: .env file not found at $DEST_PATH/.env"
                 echo "The service needs .env file with DATABASE_URL, TELEGRAM_BOT_TOKEN, etc."
               else
@@ -210,46 +243,46 @@ jobs:
               
               # Проверяем права на бинарный файл
               echo "Checking binary permissions..."
-              ssh "$USER@$HOST" "sudo ls -la $DEST_PATH/telegram_bot"
+              ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo ls -la $DEST_PATH/telegram_bot"
               
               # Restart telegram bot service
               echo "Restarting telegram bot service..."
-              ssh "$USER@$HOST" "sudo systemctl restart $TELEGRAM_SERVICE || echo 'Warning: Failed to restart $TELEGRAM_SERVICE'"
+              ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo systemctl restart $TELEGRAM_SERVICE || echo 'Warning: Failed to restart $TELEGRAM_SERVICE'"
               
               # Wait a bit for service to start
               sleep 5
               
               # Check service status
               echo "Checking telegram bot service status..."
-              ssh "$USER@$HOST" "sudo systemctl status $TELEGRAM_SERVICE --no-pager -l || true"
+              ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo systemctl status $TELEGRAM_SERVICE --no-pager -l || true"
               
               # Verify service is running
-              SERVICE_STATUS=$(ssh "$USER@$HOST" "sudo systemctl is-active $TELEGRAM_SERVICE || echo 'inactive'")
+              SERVICE_STATUS=$(ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo systemctl is-active $TELEGRAM_SERVICE || echo 'inactive'")
               if [ "$SERVICE_STATUS" = "active" ]; then
                 echo "✅ Telegram bot service is running"
               else
                 echo "⚠️  Warning: Telegram bot service is not active. Status: $SERVICE_STATUS"
                 echo "Checking recent logs..."
-                ssh "$USER@$HOST" "sudo journalctl -u $TELEGRAM_SERVICE -n 30 --no-pager || true"
+                ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo journalctl -u $TELEGRAM_SERVICE -n 30 --no-pager || true"
                 
                 # Показываем текущую конфигурацию сервиса
                 echo "Current service configuration:"
-                ssh "$USER@$HOST" "sudo cat $SERVICE_FILE || echo 'Service file not found'"
+                ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo cat $SERVICE_FILE || echo 'Service file not found'"
               fi
             else
               echo "⚠️  Warning: Telegram bot service '$TELEGRAM_SERVICE' not found."
               echo "Creating systemd service file..."
               
               # Создаем systemd сервис автоматически
-              CURRENT_USER=$(ssh "$USER@$HOST" "whoami")
-              ssh "$USER@$HOST" "printf '%s\n' '[Unit]' 'Description=Telegram Bot for Rimskiy Service' 'After=network.target' '' '[Service]' 'Type=simple' \"User=$CURRENT_USER\" \"WorkingDirectory=$DEST_PATH\" \"ExecStart=$DEST_PATH/telegram_bot\" 'Restart=always' 'RestartSec=10' 'Environment=\"RUST_LOG=info\"' \"EnvironmentFile=-$DEST_PATH/.env\" '' '[Install]' 'WantedBy=multi-user.target' | sudo tee /etc/systemd/system/$TELEGRAM_SERVICE.service > /dev/null"
+              CURRENT_USER=$(ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "whoami")
+              ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "printf '%s\n' '[Unit]' 'Description=Telegram Bot for Rimskiy Service' 'After=network.target' '' '[Service]' 'Type=simple' \"User=$CURRENT_USER\" \"WorkingDirectory=$DEST_PATH\" \"ExecStart=$DEST_PATH/telegram_bot\" 'Restart=always' 'RestartSec=10' 'Environment=\"RUST_LOG=info\"' \"EnvironmentFile=-$DEST_PATH/.env\" '' '[Install]' 'WantedBy=multi-user.target' | sudo tee /etc/systemd/system/$TELEGRAM_SERVICE.service > /dev/null"
               
               echo "Service file created. Reloading systemd..."
-              ssh "$USER@$HOST" "sudo systemctl daemon-reload"
+              ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo systemctl daemon-reload"
               echo "Enabling and starting service..."
-              ssh "$USER@$HOST" "sudo systemctl enable $TELEGRAM_SERVICE && sudo systemctl start $TELEGRAM_SERVICE || echo 'Failed to start service'"
+              ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo systemctl enable $TELEGRAM_SERVICE && sudo systemctl start $TELEGRAM_SERVICE || echo 'Failed to start service'"
               sleep 3
-              ssh "$USER@$HOST" "sudo systemctl status $TELEGRAM_SERVICE --no-pager -l || true"
+              ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo systemctl status $TELEGRAM_SERVICE --no-pager -l || true"
             fi
           else
             echo "⚠️  Warning: telegram_bot binary not found in artifacts"
@@ -431,7 +464,7 @@ jobs:
 
           DEST=${DEPLOY_PATH:-/var/www/html/apk}
           VERSION_NAME="${{ steps.version.outputs.version_name }}"
-          ssh $USER@$HOST "mkdir -p $DEST"
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no $USER@$HOST "mkdir -p $DEST"
           
           # Находим APK файл с версией
           APK_FILE=$(find android/app/build/outputs/apk/release -name "app-release-v*.apk" | head -n 1)
@@ -441,9 +474,9 @@ jobs:
           fi
           
           if [ -f "$APK_FILE" ]; then
-            scp "$APK_FILE" $USER@$HOST:$DEST/app-release-v${VERSION_NAME}.apk
+            scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$APK_FILE" $USER@$HOST:$DEST/app-release-v${VERSION_NAME}.apk
             # Также копируем как app-release.apk для прямого доступа
-            ssh $USER@$HOST "cp $DEST/app-release-v${VERSION_NAME}.apk $DEST/app-release.apk"
+            ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no $USER@$HOST "cp $DEST/app-release-v${VERSION_NAME}.apk $DEST/app-release.apk"
             echo "APK deployed successfully to $DEST (version: $VERSION_NAME)"
           else
             echo "Error: APK file not found: $APK_FILE"
