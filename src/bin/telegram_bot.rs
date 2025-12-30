@@ -154,6 +154,37 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
+    let bot_state_clone3 = bot_state.clone();
+
+    // Обработчик callback query (нажатия на кнопки)
+    let callback_handler = move |bot: Bot, q: CallbackQuery| {
+        let state = bot_state_clone3.clone();
+        async move {
+            if let Some(data) = q.data {
+                if let Some(msg) = q.message {
+                    match data.as_str() {
+                        "get_code" => {
+                            bot.answer_callback_query(q.id).await?;
+                            bot.send_message(
+                                msg.chat.id,
+                                "📱 Для получения кода авторизации отправьте команду:\n\n/code <номер телефона>\n\nПример:\n/code +79001234567",
+                            )
+                            .await?;
+                        }
+                        "get_app" => {
+                            bot.answer_callback_query(q.id).await?;
+                            handle_apk_command(&bot, &msg, &state).await?;
+                        }
+                        _ => {
+                            bot.answer_callback_query(q.id).await?;
+                        }
+                    }
+                }
+            }
+            Ok(())
+        }
+    };
+
     Dispatcher::builder(
         bot,
         Update::filter_message()
@@ -164,6 +195,7 @@ async fn main() -> anyhow::Result<()> {
             )
             .branch(dptree::endpoint(text_handler)),
     )
+    .branch(Update::filter_callback_query().endpoint(callback_handler))
     .enable_ctrlc_handler()
     .build()
     .dispatch()
@@ -412,7 +444,8 @@ async fn handle_apk_command(bot: &Bot, msg: &Message, state: &BotState) -> Respo
                     let file_name = std::path::Path::new(apk_path)
                         .file_name()
                         .and_then(|n| n.to_str())
-                        .unwrap_or("app-release.apk");
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| "app-release.apk".to_string());
 
                     match bot
                         .send_document(
@@ -546,7 +579,22 @@ async fn message_handler(
                 /apk - получить последнюю версию приложения",
                 Command::descriptions()
             );
-            bot.send_message(msg.chat.id, help_text).await?;
+
+            // Создаем inline клавиатуру с кнопками
+            let keyboard = teloxide::types::InlineKeyboardMarkup::new(vec![
+                vec![teloxide::types::InlineKeyboardButton::callback(
+                    "📱 Получить код авторизации",
+                    "get_code",
+                )],
+                vec![teloxide::types::InlineKeyboardButton::callback(
+                    "📲 Получить приложение",
+                    "get_app",
+                )],
+            ]);
+
+            bot.send_message(msg.chat.id, help_text)
+                .reply_markup(keyboard)
+                .await?;
         }
         Command::Code => {
             let text = msg.text().unwrap_or("");
