@@ -24,12 +24,52 @@ enum Command {
 }
 
 #[derive(Clone)]
+struct BotConfig {
+    sms_code_expiration_minutes: i64,
+    sms_code_length: u32,
+    return_sms_code_in_response: bool,
+    server_host: String,
+    server_port: u16,
+    app_apk_path: Option<String>,
+}
+
+#[derive(Clone)]
 struct BotState {
     sms_service: Arc<SmsService>,
-    config: Arc<Config>,
+    config: Arc<BotConfig>,
     http_client: reqwest::Client,
     api_base_url: String,
     apk_path: Option<String>,
+}
+
+fn load_bot_config() -> anyhow::Result<BotConfig> {
+    let sms_code_expiration_minutes = std::env::var("SMS_CODE_EXPIRATION_MINUTES")
+        .unwrap_or_else(|_| "10".to_string())
+        .parse()
+        .context("SMS_CODE_EXPIRATION_MINUTES must be a valid number")?;
+    let sms_code_length = std::env::var("SMS_CODE_LENGTH")
+        .unwrap_or_else(|_| "4".to_string())
+        .parse()
+        .context("SMS_CODE_LENGTH must be a valid number")?;
+    let return_sms_code_in_response = std::env::var("RETURN_SMS_CODE_IN_RESPONSE")
+        .unwrap_or_else(|_| "true".to_string())
+        .parse()
+        .unwrap_or(true);
+    let server_host = std::env::var("SERVER_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
+    let server_port = std::env::var("SERVER_PORT")
+        .unwrap_or_else(|_| "8080".to_string())
+        .parse()
+        .context("SERVER_PORT must be a valid number")?;
+    let app_apk_path = std::env::var("APP_APK_PATH").ok();
+
+    Ok(BotConfig {
+        sms_code_expiration_minutes,
+        sms_code_length,
+        return_sms_code_in_response,
+        server_host,
+        server_port,
+        app_apk_path,
+    })
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -88,11 +128,28 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    // Загружаем конфигурацию
-    let config = Arc::new(Config::from_env()?);
+    // Загружаем конфигурацию для бота (не требует DATABASE_URL и других полей)
+    let config = Arc::new(load_bot_config()?);
 
-    // Создаём SMS сервис
-    let sms_service = Arc::new(SmsService::new((*config).clone()));
+    // Создаём SMS сервис (используем минимальную конфигурацию)
+    let sms_config = Config {
+        database_url: String::new(), // Не используется ботом
+        jwt_secret: String::new(),   // Не используется ботом
+        jwt_expiration_minutes: 0,   // Не используется ботом
+        encryption_key: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".to_string(), // Не используется ботом, но требуется для создания SmsService
+        server_host: config.server_host.clone(),
+        server_port: config.server_port,
+        migrations_path: String::new(), // Не используется ботом
+        sms_code_expiration_minutes: config.sms_code_expiration_minutes,
+        sms_code_length: config.sms_code_length,
+        return_sms_code_in_response: config.return_sms_code_in_response,
+        fcm_server_key: None,
+        min_client_version: None,
+        release_client_version: None,
+        app_download_url: None,
+        app_apk_path: config.app_apk_path.clone(),
+    };
+    let sms_service = Arc::new(SmsService::new(sms_config));
 
     // Получаем базовый URL API сервера
     let api_base_url = std::env::var("API_BASE_URL")
@@ -126,13 +183,20 @@ async fn main() -> anyhow::Result<()> {
     let bot = Bot::new(token);
 
     tracing::info!("Telegram бот запущен");
+    tracing::info!("APK путь: {:?}", bot_state.apk_path);
+    tracing::info!("API базовый URL: {}", bot_state.api_base_url);
+    let sms_configured = std::env::var("SMS_API_URL").is_ok() && std::env::var("SMS_API_KEY").is_ok();
+    tracing::info!("SMS сервис настроен: {}", if sms_configured { "да" } else { "нет" });
 
     let bot_state_clone1 = bot_state.clone();
     let bot_state_clone2 = bot_state.clone();
 
     let handler = move |bot: Bot, msg: Message, cmd: Command| {
         let state = bot_state_clone1.clone();
-        async move { message_handler(bot, msg, cmd, (*state).clone()).await }
+        async move {
+            tracing::info!("Обработка команды {:?} от чата {}", cmd, msg.chat.id);
+            message_handler(bot, msg, cmd, (*state).clone()).await
+        }
     };
 
     // Обработчик для текстовых сообщений, начинающихся с /code или /block (если команда не распознана как BotCommand)
@@ -141,12 +205,16 @@ async fn main() -> anyhow::Result<()> {
         async move {
             if let Some(text) = msg.text() {
                 let trimmed = text.trim();
+                tracing::info!("Получено текстовое сообщение: '{}' от чата {}", trimmed, msg.chat.id);
                 // Если сообщение начинается с /code, обрабатываем его
                 if trimmed.starts_with("/code") {
+                    tracing::info!("Обработка /code через text_handler");
                     handle_code_command(&bot, &msg, trimmed, &state).await?;
                 } else if trimmed.starts_with("/block") {
+                    tracing::info!("Обработка /block через text_handler");
                     handle_block_command(&bot, &msg, trimmed, &state).await?;
                 } else if trimmed.starts_with("/apk") {
+                    tracing::info!("Обработка /apk через text_handler");
                     handle_apk_command(&bot, &msg, &state).await?;
                 }
             }
@@ -160,6 +228,7 @@ async fn main() -> anyhow::Result<()> {
     let callback_handler = move |bot: Bot, q: CallbackQuery| {
         let state = bot_state_clone3.clone();
         async move {
+            tracing::info!("Обработка callback query: data = {:?}", q.data);
             if let Some(data) = q.data {
                 if let Some(msg) = q.message {
                     match data.as_str() {
@@ -213,6 +282,7 @@ async fn handle_code_command(
     text: &str,
     state: &BotState,
 ) -> ResponseResult<()> {
+    tracing::info!("Обработка команды /code: текст = '{}', чат = {}", text, msg.chat.id);
     let phone = text.trim_start_matches("/code").trim();
     if phone.is_empty() {
         bot.send_message(
@@ -434,6 +504,7 @@ async fn handle_block_command(
 }
 
 async fn handle_apk_command(bot: &Bot, msg: &Message, state: &BotState) -> ResponseResult<()> {
+    tracing::info!("Обработка команды /apk: чат = {}, APK путь = {:?}", msg.chat.id, state.apk_path);
     // Отправляем сообщение о начале обработки
     let processing_msg = bot
         .send_message(msg.chat.id, "⏳ Загружаю последнюю версию приложения...")
