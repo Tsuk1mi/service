@@ -398,17 +398,10 @@ async fn handle_block_command(
     Ok(())
 }
 
-async fn handle_apk_command(
-    bot: &Bot,
-    msg: &Message,
-    state: &BotState,
-) -> ResponseResult<()> {
+async fn handle_apk_command(bot: &Bot, msg: &Message, state: &BotState) -> ResponseResult<()> {
     // Отправляем сообщение о начале обработки
     let processing_msg = bot
-        .send_message(
-            msg.chat.id,
-            "⏳ Загружаю последнюю версию приложения...",
-        )
+        .send_message(msg.chat.id, "⏳ Загружаю последнюю версию приложения...")
         .await?;
 
     // Пробуем отправить APK файл напрямую с диска
