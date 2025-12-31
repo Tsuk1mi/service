@@ -109,7 +109,7 @@ async fn main() -> anyhow::Result<()> {
     if let Ok(work_dir) = std::env::var("SERVICE_WORK_DIR") {
         env_paths.push(format!("{}/.env", work_dir));
     }
-    
+
     // Также проверяем путь относительно бинарного файла
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
