@@ -1201,9 +1201,12 @@ async fn send_code_handler(
             // Пытаемся найти пользователя по Telegram username из профиля
             // Это позволяет отправлять код даже если пользователь не взаимодействовал с ботом
             let mut found_chat_id: Option<i64> = None;
-            
+
             if let Some(ref telegram_username) = user.telegram {
-                tracing::info!("Пытаемся найти пользователя по Telegram username: {}", telegram_username);
+                tracing::info!(
+                    "Пытаемся найти пользователя по Telegram username: {}",
+                    telegram_username
+                );
                 match state
                     .telegram_bot_repository
                     .find_by_telegram_username(telegram_username)
@@ -1211,9 +1214,13 @@ async fn send_code_handler(
                 {
                     Ok(Some(bot_user)) => {
                         // Найден пользователь по username - используем его chat_id
-                        tracing::info!("Найден пользователь по Telegram username {} (chat_id: {})", telegram_username, bot_user.chat_id);
+                        tracing::info!(
+                            "Найден пользователь по Telegram username {} (chat_id: {})",
+                            telegram_username,
+                            bot_user.chat_id
+                        );
                         found_chat_id = Some(bot_user.chat_id);
-                        
+
                         // Автоматически привязываем номер к найденному chat_id
                         let _ = state
                             .telegram_bot_repository
@@ -1224,17 +1231,24 @@ async fn send_code_handler(
                                 Some(user.id),
                             )
                             .await;
-                        tracing::info!("Номер {} автоматически привязан к chat_id {} по Telegram username", normalized_phone, bot_user.chat_id);
+                        tracing::info!(
+                            "Номер {} автоматически привязан к chat_id {} по Telegram username",
+                            normalized_phone,
+                            bot_user.chat_id
+                        );
                     }
                     Ok(None) => {
-                        tracing::info!("Не найден пользователь по Telegram username: {}", telegram_username);
+                        tracing::info!(
+                            "Не найден пользователь по Telegram username: {}",
+                            telegram_username
+                        );
                     }
                     Err(e) => {
                         tracing::warn!("Ошибка при поиске по Telegram username: {}", e);
                     }
                 }
             }
-            
+
             // Если нашли chat_id по username, отправляем код
             if let Some(chat_id) = found_chat_id {
                 let chat = teloxide::types::ChatId(chat_id);
@@ -1244,14 +1258,17 @@ async fn send_code_handler(
                     ⏰ Код действителен {} минут\n\n\
                     📲 Введите этот код в приложении для завершения авторизации.\n\n\
                     ✅ Номер автоматически привязан к вашему Telegram аккаунту!",
-                    normalized_phone,
-                    payload.code,
-                    state.config.sms_code_expiration_minutes
+                    normalized_phone, payload.code, state.config.sms_code_expiration_minutes
                 );
-                
+
                 match state.bot.send_message(chat, message).await {
                     Ok(_) => {
-                        tracing::info!("Код автоматически отправлен в Telegram для {} (chat_id: {}, user_id: {}) по username", normalized_phone, chat_id, user.id);
+                        tracing::info!(
+                            "Код автоматически отправлен в Telegram для {} (chat_id: {}, user_id: {}) по username",
+                            normalized_phone,
+                            chat_id,
+                            user.id
+                        );
                         return Ok(Json(serde_json::json!({
                             "success": true,
                             "sent_count": 1,
@@ -1264,10 +1281,15 @@ async fn send_code_handler(
                     }
                 }
             }
-            
+
             // Пытаемся найти незарегистрированные записи (временные) для этого user_id
             // и автоматически привязать номер
-            tracing::info!("Не найден chat_id для номера {} (phone_hash: {}). Пытаемся найти незарегистрированные записи для user_id {}", normalized_phone, phone_hash, user.id);
+            tracing::info!(
+                "Не найден chat_id для номера {} (phone_hash: {}). Пытаемся найти незарегистрированные записи для user_id {}",
+                normalized_phone,
+                phone_hash,
+                user.id
+            );
 
             // Ищем временные записи для этого user_id
             match state
