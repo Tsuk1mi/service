@@ -160,7 +160,7 @@ async fn main() -> anyhow::Result<()> {
     // Также пытаемся загрузить из стандартного места (текущая директория)
     if !env_loaded {
         tracing::info!("Trying to load .env from current directory...");
-        if let Ok(_) = dotenv::dotenv() {
+        if dotenv::dotenv().is_ok() {
             tracing::info!("✅ Successfully loaded .env from current directory");
             env_loaded = true;
         }
