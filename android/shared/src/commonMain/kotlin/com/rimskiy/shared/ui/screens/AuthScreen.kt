@@ -72,12 +72,12 @@ fun AuthScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.Lock,
-                    contentDescription = null,
+        Icon(
+            imageVector = Icons.Default.Lock,
+            contentDescription = null,
                     modifier = Modifier.size(56.dp),
                     tint = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+        )
             }
         }
         

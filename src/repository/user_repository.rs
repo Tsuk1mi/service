@@ -20,6 +20,7 @@ pub struct CreateUserData {
     pub plate: String,
 }
 
+#[derive(Default)]
 pub struct UpdateUserData {
     pub name: Option<String>,
     pub phone_encrypted: Option<String>,

@@ -255,6 +255,71 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
     .execute(pool)
     .await?;
 
+    // Создаём таблицу для хранения связей Telegram бота (номер телефона -> chat_id -> telegram_username)
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS telegram_bot_users (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            phone_hash TEXT NOT NULL,
+            chat_id BIGINT NOT NULL,
+            telegram_username TEXT,
+            user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE(phone_hash, chat_id)
+        )
+        "#,
+    )
+    .execute(pool)
+    .await?;
+
+    // Индекс для быстрого поиска по phone_hash
+    sqlx::query(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_telegram_bot_users_phone_hash ON telegram_bot_users(phone_hash)
+        "#
+    )
+    .execute(pool)
+    .await?;
+
+    // Индекс для быстрого поиска по chat_id
+    sqlx::query(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_telegram_bot_users_chat_id ON telegram_bot_users(chat_id)
+        "#,
+    )
+    .execute(pool)
+    .await?;
+
+    // Индекс для поиска по user_id
+    sqlx::query(
+        r#"
+        CREATE INDEX IF NOT EXISTS idx_telegram_bot_users_user_id ON telegram_bot_users(user_id) WHERE user_id IS NOT NULL
+        "#
+    )
+    .execute(pool)
+    .await?;
+
+    // Триггер для автоматического обновления updated_at в telegram_bot_users
+    let _ = sqlx::query(
+        r#"
+        DROP TRIGGER IF EXISTS update_telegram_bot_users_updated_at ON telegram_bot_users
+        "#,
+    )
+    .execute(pool)
+    .await;
+
+    sqlx::query(
+        r#"
+        CREATE TRIGGER update_telegram_bot_users_updated_at
+            BEFORE UPDATE ON telegram_bot_users
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column()
+        "#,
+    )
+    .execute(pool)
+    .await?;
+
     // Создаём таблицу для множественных автомобилей пользователя
     sqlx::query(
         r#"
