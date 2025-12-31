@@ -141,9 +141,7 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
             blocked_plate TEXT NOT NULL,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             -- Constraints для валидации
-            CONSTRAINT blocked_plate_format CHECK (LENGTH(TRIM(blocked_plate)) >= 8 AND LENGTH(blocked_plate) <= 15),
-            -- Уникальность: один номер не может заблокировать другой номер дважды
-            CONSTRAINT unique_plate_block UNIQUE(UPPER(TRIM(blocker_plate)), UPPER(TRIM(blocked_plate)))
+            CONSTRAINT blocked_plate_format CHECK (LENGTH(TRIM(blocked_plate)) >= 8 AND LENGTH(blocked_plate) <= 15)
         )
         "#
     )
@@ -206,6 +204,18 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
     sqlx::query(
         r#"
         CREATE INDEX IF NOT EXISTS idx_blocks_blocker_plate_norm ON blocks(UPPER(TRIM(blocker_plate)))
+        "#
+    )
+    .execute(pool)
+    .await?;
+
+    // Уникальный функциональный индекс для обеспечения уникальности блокировок
+    // (один номер не может заблокировать другой номер дважды)
+    // Используем индекс вместо constraint, так как PostgreSQL не поддерживает функции в UNIQUE constraint
+    sqlx::query(
+        r#"
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_blocks_unique_plate_block 
+        ON blocks(UPPER(TRIM(blocker_plate)), UPPER(TRIM(blocked_plate)))
         "#
     )
     .execute(pool)
