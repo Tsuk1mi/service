@@ -136,7 +136,8 @@ async fn main() -> anyhow::Result<()> {
         database_url: String::new(), // Не используется ботом
         jwt_secret: String::new(),   // Не используется ботом
         jwt_expiration_minutes: 0,   // Не используется ботом
-        encryption_key: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".to_string(), // Не используется ботом, но требуется для создания SmsService
+        encryption_key: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+            .to_string(), // Не используется ботом, но требуется для создания SmsService
         server_host: config.server_host.clone(),
         server_port: config.server_port,
         migrations_path: String::new(), // Не используется ботом
@@ -185,8 +186,12 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Telegram бот запущен");
     tracing::info!("APK путь: {:?}", bot_state.apk_path);
     tracing::info!("API базовый URL: {}", bot_state.api_base_url);
-    let sms_configured = std::env::var("SMS_API_URL").is_ok() && std::env::var("SMS_API_KEY").is_ok();
-    tracing::info!("SMS сервис настроен: {}", if sms_configured { "да" } else { "нет" });
+    let sms_configured =
+        std::env::var("SMS_API_URL").is_ok() && std::env::var("SMS_API_KEY").is_ok();
+    tracing::info!(
+        "SMS сервис настроен: {}",
+        if sms_configured { "да" } else { "нет" }
+    );
 
     let bot_state_clone1 = bot_state.clone();
     let bot_state_clone2 = bot_state.clone();
@@ -205,7 +210,11 @@ async fn main() -> anyhow::Result<()> {
         async move {
             if let Some(text) = msg.text() {
                 let trimmed = text.trim();
-                tracing::info!("Получено текстовое сообщение: '{}' от чата {}", trimmed, msg.chat.id);
+                tracing::info!(
+                    "Получено текстовое сообщение: '{}' от чата {}",
+                    trimmed,
+                    msg.chat.id
+                );
                 // Если сообщение начинается с /code, обрабатываем его
                 if trimmed.starts_with("/code") {
                     tracing::info!("Обработка /code через text_handler");
@@ -282,7 +291,11 @@ async fn handle_code_command(
     text: &str,
     state: &BotState,
 ) -> ResponseResult<()> {
-    tracing::info!("Обработка команды /code: текст = '{}', чат = {}", text, msg.chat.id);
+    tracing::info!(
+        "Обработка команды /code: текст = '{}', чат = {}",
+        text,
+        msg.chat.id
+    );
     let phone = text.trim_start_matches("/code").trim();
     if phone.is_empty() {
         bot.send_message(
@@ -504,7 +517,11 @@ async fn handle_block_command(
 }
 
 async fn handle_apk_command(bot: &Bot, msg: &Message, state: &BotState) -> ResponseResult<()> {
-    tracing::info!("Обработка команды /apk: чат = {}, APK путь = {:?}", msg.chat.id, state.apk_path);
+    tracing::info!(
+        "Обработка команды /apk: чат = {}, APK путь = {:?}",
+        msg.chat.id,
+        state.apk_path
+    );
     // Отправляем сообщение о начале обработки
     let processing_msg = bot
         .send_message(msg.chat.id, "⏳ Загружаю последнюю версию приложения...")
