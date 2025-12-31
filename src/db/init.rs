@@ -216,7 +216,7 @@ pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
         r#"
         CREATE UNIQUE INDEX IF NOT EXISTS idx_blocks_unique_plate_block 
         ON blocks(UPPER(TRIM(blocker_plate)), UPPER(TRIM(blocked_plate)))
-        "#
+        "#,
     )
     .execute(pool)
     .await?;
