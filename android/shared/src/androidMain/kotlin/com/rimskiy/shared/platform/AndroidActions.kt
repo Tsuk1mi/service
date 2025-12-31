@@ -214,7 +214,12 @@ actual class PlatformActions(private val context: Context) {
                                     context?.unregisterReceiver(this)
                                     // Получаем путь к загруженному файлу
                                     val downloadedFile = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                        File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "updates/app-update.apk")
+                                        val externalDir = context?.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+                                        if (externalDir != null) {
+                                            File(externalDir, "updates/app-update.apk")
+                                        } else {
+                                            apkFile
+                                        }
                                     } else {
                                         apkFile
                                     }

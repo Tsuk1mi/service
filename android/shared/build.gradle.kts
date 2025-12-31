@@ -75,6 +75,8 @@ kotlin {
         val androidMain by getting {
             dependencies {
                 implementation("io.ktor:ktor-client-android:2.3.5")
+                // AndroidX Core для FileProvider
+                implementation("androidx.core:core-ktx:1.12.0")
                 // multiplatform-settings-android уже включен через commonMain
             }
         }

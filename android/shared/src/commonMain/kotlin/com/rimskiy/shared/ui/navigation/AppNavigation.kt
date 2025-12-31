@@ -333,7 +333,7 @@ fun AppNavigation(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             LinearProgressIndicator(
-                                progress = { downloadProgress / 100f },
+                                progress = downloadProgress / 100f,
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Text(
@@ -513,7 +513,7 @@ fun AppNavigation(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             LinearProgressIndicator(
-                                progress = { downloadProgress / 100f },
+                                progress = downloadProgress / 100f,
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Text(
