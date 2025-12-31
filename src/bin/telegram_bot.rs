@@ -97,29 +97,37 @@ async fn main() -> anyhow::Result<()> {
     // Пытаемся загрузить .env файл из нескольких возможных мест
     // 1. Из текущей директории (для локальной разработки)
     // 2. Из /opt/rimskiy-service/.env (для production)
-    // 3. Из рабочей директории сервиса (если установлена через WorkingDirectory в systemd)
-    let mut env_paths: Vec<String> =
-        vec![".env".to_string(), "/opt/rimskiy-service/.env".to_string()];
+    // 3. Из /service/.env (альтернативный путь)
+    // 4. Из рабочей директории сервиса (если установлена через WorkingDirectory в systemd)
+    let mut env_paths: Vec<String> = vec![
+        ".env".to_string(),
+        "/opt/rimskiy-service/.env".to_string(),
+        "/service/.env".to_string(),
+        "/root/service/.env".to_string(),
+    ];
 
     if let Ok(work_dir) = std::env::var("SERVICE_WORK_DIR") {
         env_paths.push(format!("{}/.env", work_dir));
     }
-
-    for env_path in env_paths {
-        if !env_path.is_empty() && std::path::Path::new(&env_path).exists() {
-            if let Err(e) = dotenv::from_path(&env_path) {
-                tracing::warn!("Failed to load .env from {}: {}", env_path, e);
-            } else {
-                tracing::info!("Loaded .env from {}", env_path);
-                break;
+    
+    // Также проверяем путь относительно бинарного файла
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let env_in_exe_dir = exe_dir.join(".env");
+            if let Some(env_str) = env_in_exe_dir.to_str() {
+                env_paths.push(env_str.to_string());
+            }
+            // Также проверяем родительскую директорию
+            if let Some(parent_dir) = exe_dir.parent() {
+                let env_in_parent = parent_dir.join(".env");
+                if let Some(env_str) = env_in_parent.to_str() {
+                    env_paths.push(env_str.to_string());
+                }
             }
         }
     }
 
-    // Также пытаемся загрузить из стандартного места
-    dotenv::dotenv().ok();
-
-    // Инициализируем логирование (раньше, чтобы видеть логи загрузки .env)
+    // Инициализируем логирование раньше, чтобы видеть логи загрузки .env
     let default_filter = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -127,6 +135,44 @@ async fn main() -> anyhow::Result<()> {
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(&default_filter)),
         )
         .init();
+
+    tracing::info!("Searching for .env file in the following paths:");
+    for path in &env_paths {
+        tracing::info!("  - {}", path);
+    }
+
+    let mut env_loaded = false;
+    for env_path in &env_paths {
+        if !env_path.is_empty() && std::path::Path::new(env_path).exists() {
+            tracing::info!("Found .env file at: {}", env_path);
+            if let Err(e) = dotenv::from_path(env_path) {
+                tracing::warn!("Failed to load .env from {}: {}", env_path, e);
+            } else {
+                tracing::info!("✅ Successfully loaded .env from {}", env_path);
+                env_loaded = true;
+                break;
+            }
+        } else {
+            tracing::debug!(".env file not found at: {}", env_path);
+        }
+    }
+
+    // Также пытаемся загрузить из стандартного места (текущая директория)
+    if !env_loaded {
+        tracing::info!("Trying to load .env from current directory...");
+        if let Ok(_) = dotenv::dotenv() {
+            tracing::info!("✅ Successfully loaded .env from current directory");
+            env_loaded = true;
+        }
+    }
+
+    if !env_loaded {
+        tracing::warn!("⚠️  No .env file found in any of the checked paths");
+        tracing::warn!("Please ensure .env file exists in one of these locations:");
+        for path in &env_paths {
+            tracing::warn!("   - {}", path);
+        }
+    }
 
     // Логируем информацию о загруженных переменных окружения
     tracing::info!("Checking environment variables...");
