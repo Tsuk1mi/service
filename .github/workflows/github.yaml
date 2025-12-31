@@ -170,12 +170,108 @@ jobs:
             ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo mkdir -p $DEST_PATH && sudo mv /tmp/rimskiy_service $DEST_PATH/rimskiy_service && sudo chmod +x $DEST_PATH/rimskiy_service"
             echo "Main service binary deployed"
             
-            # Restart main service
-            echo "Restarting main service: $SERVICE"
-            ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo systemctl restart $SERVICE || echo 'Warning: Failed to restart $SERVICE'"
-            sleep 2
-            ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo systemctl status $SERVICE --no-pager -l || true"
-            echo "Main service restarted"
+            # Check if main service exists
+            echo "Checking if main service exists: $SERVICE"
+            SERVICE_EXISTS=$(ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo systemctl list-unit-files | grep -c $SERVICE || echo '0'")
+            
+            if [ "$SERVICE_EXISTS" != "0" ]; then
+              echo "Main service found: $SERVICE"
+              
+              # Проверяем конфигурацию сервиса и исправляем если нужно
+              echo "Checking service configuration..."
+              SERVICE_FILE="/etc/systemd/system/$SERVICE.service"
+              CURRENT_USER=$(ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "whoami")
+              
+              # Проверяем, правильно ли настроен ExecStart
+              EXEC_START=$(ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo grep '^ExecStart=' $SERVICE_FILE | cut -d'=' -f2-" || echo "")
+              if [ -z "$EXEC_START" ] || [ "$EXEC_START" != "$DEST_PATH/rimskiy_service" ]; then
+                echo "Fixing ExecStart in service file..."
+                ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo sed -i 's|^ExecStart=.*|ExecStart=$DEST_PATH/rimskiy_service|' $SERVICE_FILE || true"
+              fi
+              
+              # Проверяем, есть ли WorkingDirectory
+              if ! ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo grep -q '^WorkingDirectory=' $SERVICE_FILE"; then
+                echo "Adding WorkingDirectory to service file..."
+                ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo sed -i '/^\[Service\]/a WorkingDirectory=$DEST_PATH' $SERVICE_FILE || true"
+              fi
+              
+              # Проверяем, есть ли EnvironmentFile
+              if ! ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo grep -q '^EnvironmentFile=' $SERVICE_FILE"; then
+                echo "Adding EnvironmentFile to service file..."
+                ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo sed -i '/^WorkingDirectory=/a EnvironmentFile=-$DEST_PATH/.env' $SERVICE_FILE || true"
+              fi
+              
+              # Проверяем User
+              if ! ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo grep -q '^User=' $SERVICE_FILE"; then
+                echo "Adding User to service file..."
+                ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo sed -i '/^\[Service\]/a User=$CURRENT_USER' $SERVICE_FILE || true"
+              fi
+              
+              # Reload systemd daemon (в случае обновления конфигурации)
+              ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo systemctl daemon-reload"
+              
+              # Проверяем наличие .env файла
+              echo "Checking .env file..."
+              if ! ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo test -f $DEST_PATH/.env"; then
+                echo "⚠️  WARNING: .env file not found at $DEST_PATH/.env"
+                echo "The service needs .env file with DATABASE_URL, JWT_SECRET, etc."
+              else
+                echo "✅ .env file exists"
+              fi
+              
+              # Проверяем права на бинарный файл
+              echo "Checking binary permissions..."
+              ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo ls -la $DEST_PATH/rimskiy_service"
+              
+              # Restart main service
+              echo "Restarting main service: $SERVICE"
+              ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo systemctl restart $SERVICE || echo 'Warning: Failed to restart $SERVICE'"
+              
+              # Wait a bit for service to start
+              sleep 5
+              
+              # Check service status
+              echo "Checking main service status..."
+              ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo systemctl status $SERVICE --no-pager -l || true"
+              
+              # Verify service is running
+              SERVICE_STATUS=$(ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo systemctl is-active $SERVICE || echo 'inactive'")
+              if [ "$SERVICE_STATUS" = "active" ]; then
+                echo "✅ Main service is running"
+              else
+                echo "⚠️  Warning: Main service is not active. Status: $SERVICE_STATUS"
+                echo "Checking recent logs..."
+                ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo journalctl -u $SERVICE -n 30 --no-pager || true"
+                
+                # Показываем текущую конфигурацию сервиса
+                echo "Current service configuration:"
+                ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo cat $SERVICE_FILE || echo 'Service file not found'"
+              fi
+            else
+              echo "⚠️  Warning: Main service '$SERVICE' not found."
+              echo "Creating systemd service file..."
+              
+              # Создаем systemd сервис автоматически
+              CURRENT_USER=$(ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "whoami")
+              ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "printf '%s\n' '[Unit]' 'Description=Rimskiy Service' 'After=network.target postgresql.service' '' '[Service]' 'Type=simple' \"User=$CURRENT_USER\" \"WorkingDirectory=$DEST_PATH\" \"ExecStart=$DEST_PATH/rimskiy_service\" 'Restart=always' 'RestartSec=10' 'Environment=\"RUST_LOG=info\"' \"EnvironmentFile=-$DEST_PATH/.env\" '' '[Install]' 'WantedBy=multi-user.target' | sudo tee /etc/systemd/system/$SERVICE.service > /dev/null"
+              
+              echo "Service file created. Reloading systemd..."
+              ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo systemctl daemon-reload"
+              echo "Enabling and starting service..."
+              ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo systemctl enable $SERVICE && sudo systemctl start $SERVICE || echo 'Failed to start service'"
+              sleep 5
+              ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo systemctl status $SERVICE --no-pager -l || true"
+              
+              # Verify service is running
+              SERVICE_STATUS=$(ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo systemctl is-active $SERVICE || echo 'inactive'")
+              if [ "$SERVICE_STATUS" = "active" ]; then
+                echo "✅ Main service created and started successfully"
+              else
+                echo "⚠️  Warning: Main service failed to start. Status: $SERVICE_STATUS"
+                echo "Checking recent logs..."
+                ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo journalctl -u $SERVICE -n 30 --no-pager || true"
+              fi
+            fi
           else
             echo "Error: rimskiy_service binary not found in artifacts"
             exit 1
