@@ -119,7 +119,7 @@ async fn main() -> anyhow::Result<()> {
     // Также пытаемся загрузить из стандартного места
     dotenv::dotenv().ok();
 
-    // Инициализируем логирование
+    // Инициализируем логирование (раньше, чтобы видеть логи загрузки .env)
     let default_filter = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -127,6 +127,30 @@ async fn main() -> anyhow::Result<()> {
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(&default_filter)),
         )
         .init();
+
+    // Логируем информацию о загруженных переменных окружения
+    tracing::info!("Checking environment variables...");
+    let env_vars_to_check = vec![
+        "TELEGRAM_BOT_TOKEN",
+        "SMS_API_URL",
+        "SMS_API_KEY",
+        "API_BASE_URL",
+        "SERVER_HOST",
+        "SERVER_PORT",
+    ];
+    for var_name in env_vars_to_check {
+        if std::env::var(var_name).is_ok() {
+            tracing::info!("✅ {} is set", var_name);
+        } else {
+            tracing::warn!("⚠️  {} is not set", var_name);
+        }
+    }
+
+    // Проверяем наличие TELEGRAM_BOT_TOKEN перед загрузкой конфигурации
+    let token = std::env::var("TELEGRAM_BOT_TOKEN").context(
+        "TELEGRAM_BOT_TOKEN is required. Please set it in .env file or environment variables",
+    )?;
+    tracing::info!("TELEGRAM_BOT_TOKEN found (length: {})", token.len());
 
     // Загружаем конфигурацию для бота (не требует DATABASE_URL и других полей)
     let config = Arc::new(load_bot_config()?);
@@ -179,8 +203,6 @@ async fn main() -> anyhow::Result<()> {
         api_base_url,
         apk_path,
     });
-
-    let token = std::env::var("TELEGRAM_BOT_TOKEN").context("TELEGRAM_BOT_TOKEN is required")?;
     let bot = Bot::new(token);
 
     tracing::info!("Telegram бот запущен");

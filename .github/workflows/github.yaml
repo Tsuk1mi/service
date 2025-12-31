@@ -328,13 +328,22 @@ jobs:
               # Reload systemd daemon (в случае обновления конфигурации)
               ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo systemctl daemon-reload"
               
-              # Проверяем наличие .env файла
+              # Проверяем наличие .env файла и необходимых переменных
               echo "Checking .env file..."
               if ! ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo test -f $DEST_PATH/.env"; then
                 echo "⚠️  WARNING: .env file not found at $DEST_PATH/.env"
                 echo "The service needs .env file with DATABASE_URL, TELEGRAM_BOT_TOKEN, etc."
               else
                 echo "✅ .env file exists"
+                echo "Checking required variables in .env file..."
+                REQUIRED_VARS=("TELEGRAM_BOT_TOKEN" "DATABASE_URL")
+                for VAR in "${REQUIRED_VARS[@]}"; do
+                  if ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "sudo grep -q '^${VAR}=' $DEST_PATH/.env 2>/dev/null"; then
+                    echo "✅ $VAR is set in .env"
+                  else
+                    echo "⚠️  WARNING: $VAR is missing in .env file"
+                  fi
+                done
               fi
               
               # Проверяем права на бинарный файл
