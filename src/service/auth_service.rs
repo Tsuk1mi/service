@@ -6,6 +6,8 @@ use crate::models::auth::{AuthStartResponse, AuthVerifyResponse, RefreshTokenRes
 use crate::repository::{CreateUserData, UserPlateRepository, UserRepository};
 use crate::service::validation_service::ValidationService;
 use crate::utils::encryption::Encryption;
+use reqwest::Client;
+use serde_json::json;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
@@ -15,6 +17,7 @@ pub struct AuthService {
     sms_service: SmsService,
     encryption: Encryption,
     config: Config,
+    http_client: Client,
 }
 
 impl AuthService {
@@ -22,7 +25,44 @@ impl AuthService {
         Self {
             sms_service,
             encryption,
-            config,
+            config: config.clone(),
+            http_client: Client::new(),
+        }
+    }
+
+    /// Отправляет код авторизации в Telegram бот
+    async fn send_code_to_telegram(&self, phone: &str, code: &str) -> Result<(), String> {
+        // Получаем порт бота (основной порт + 1)
+        let bot_port = self
+            .config
+            .server_port
+            .checked_add(1)
+            .ok_or_else(|| "Port overflow".to_string())?;
+
+        let bot_url = format!("http://localhost:{}/send_code", bot_port);
+
+        let payload = json!({
+            "phone": phone,
+            "code": code
+        });
+
+        match self.http_client.post(&bot_url).json(&payload).send().await {
+            Ok(response) => {
+                if response.status().is_success() {
+                    tracing::info!("Код отправлен в Telegram бот для {}", phone);
+                    Ok(())
+                } else {
+                    Err(format!(
+                        "Telegram bot returned error: {}",
+                        response.status()
+                    ))
+                }
+            }
+            Err(e) => {
+                // Если бот не запущен или недоступен, это не критично
+                tracing::debug!("Telegram bot недоступен: {}", e);
+                Err(format!("Telegram bot недоступен: {}", e))
+            }
         }
     }
 
@@ -44,6 +84,12 @@ impl AuthService {
                     "Не удалось отправить SMS код. {}. Для разработки установите RETURN_SMS_CODE_IN_RESPONSE=true", e
                 ))
             })?;
+
+        // Отправляем код в Telegram бот (если настроен)
+        if let Err(e) = self.send_code_to_telegram(&normalized_phone, &code).await {
+            tracing::warn!("Не удалось отправить код в Telegram бот: {}", e);
+            // Не прерываем процесс, если не удалось отправить в Telegram
+        }
 
         let expires_in = (self.config.sms_code_expiration_minutes * 60) as u64;
 
