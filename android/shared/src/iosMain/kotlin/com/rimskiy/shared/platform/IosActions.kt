@@ -19,5 +19,15 @@ actual class PlatformActions {
         val url = NSURL.URLWithString("https://t.me/$usernameClean")
         url?.let { UIApplication.sharedApplication.openURL(it) }
     }
+    
+    actual fun takePhoto(callback: (ByteArray?) -> Unit) {
+        // iOS implementation
+        callback(null)
+    }
+    
+    actual fun downloadAndInstallApk(url: String, onProgress: (Int) -> Unit, onComplete: () -> Unit, onError: (String) -> Unit) {
+        // iOS implementation - not applicable
+        onError("APK installation is not available on iOS")
+    }
 }
 

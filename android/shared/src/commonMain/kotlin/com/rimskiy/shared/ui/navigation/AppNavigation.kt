@@ -78,6 +78,12 @@ fun AppNavigation(
     var telegramBotUsername by remember { mutableStateOf<String?>(null) }
     var isForceUpdate by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val platformActions = getPlatformActions()
+    
+    // Состояние для отслеживания загрузки APK
+    var isDownloading by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableStateOf(0) }
+    var downloadError by remember { mutableStateOf<String?>(null) }
     
     // Функция проверки версии и обновления
     fun checkVersionAndUpdate(info: com.rimskiy.shared.data.model.ServerInfoResponse?) {
@@ -214,7 +220,6 @@ fun AppNavigation(
     }
 
     if (showUpdateDialog) {
-        val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
         AlertDialog(
             onDismissRequest = { /* блокируем закрытие - требуется обновление */ },
             icon = {
@@ -321,23 +326,62 @@ fun AppNavigation(
             },
             confirmButton = {
                 downloadUrl?.let { url ->
-                    Button(
-                        onClick = { 
-                            uriHandler.openUri(url)
-                            showUpdateDialog = false
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(
-                            imageVector = androidx.compose.material.icons.Icons.Default.Update,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Обновить приложение")
+                    if (isDownloading) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            LinearProgressIndicator(
+                                progress = { downloadProgress / 100f },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Text(
+                                text = "Загрузка: $downloadProgress%",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            downloadError?.let { error ->
+                                Text(
+                                    text = error,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    } else {
+                        Button(
+                            onClick = { 
+                                isDownloading = true
+                                downloadProgress = 0
+                                downloadError = null
+                                platformActions.downloadAndInstallApk(
+                                    url = url,
+                                    onProgress = { progress ->
+                                        downloadProgress = progress
+                                    },
+                                    onComplete = {
+                                        isDownloading = false
+                                        showUpdateDialog = false
+                                    },
+                                    onError = { error ->
+                                        isDownloading = false
+                                        downloadError = error
+                                    }
+                                )
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                imageVector = androidx.compose.material.icons.Icons.Default.Update,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Обновить приложение")
+                        }
                     }
                 } ?: run {
                     OutlinedButton(
@@ -356,7 +400,6 @@ fun AppNavigation(
     
     // Диалог опционального обновления
     if (showOptionalUpdateDialog) {
-        val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
         AlertDialog(
             onDismissRequest = { showOptionalUpdateDialog = false },
             icon = {
@@ -463,23 +506,62 @@ fun AppNavigation(
             },
             confirmButton = {
                 downloadUrl?.let { url ->
-                    Button(
-                        onClick = { 
-                            uriHandler.openUri(url)
-                            showOptionalUpdateDialog = false
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(
-                            imageVector = androidx.compose.material.icons.Icons.Default.Update,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Обновить")
+                    if (isDownloading) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            LinearProgressIndicator(
+                                progress = { downloadProgress / 100f },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Text(
+                                text = "Загрузка: $downloadProgress%",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            downloadError?.let { error ->
+                                Text(
+                                    text = error,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    } else {
+                        Button(
+                            onClick = { 
+                                isDownloading = true
+                                downloadProgress = 0
+                                downloadError = null
+                                platformActions.downloadAndInstallApk(
+                                    url = url,
+                                    onProgress = { progress ->
+                                        downloadProgress = progress
+                                    },
+                                    onComplete = {
+                                        isDownloading = false
+                                        showOptionalUpdateDialog = false
+                                    },
+                                    onError = { error ->
+                                        isDownloading = false
+                                        downloadError = error
+                                    }
+                                )
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                imageVector = androidx.compose.material.icons.Icons.Default.Update,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Обновить")
+                        }
                     }
                 } ?: run {
                     OutlinedButton(
