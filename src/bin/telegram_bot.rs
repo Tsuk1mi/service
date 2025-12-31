@@ -7,7 +7,7 @@ use std::sync::Arc;
 use teloxide::prelude::*;
 use teloxide::utils::command::BotCommands;
 
-#[derive(BotCommands, Clone)]
+#[derive(BotCommands, Clone, Debug)]
 #[command(
     rename_rule = "lowercase",
     description = "Команды бота для авторизации и проверки блокировок"
