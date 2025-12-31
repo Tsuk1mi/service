@@ -98,35 +98,42 @@ fun AppNavigation(
                         return@fold
                     }
                     
-                    // Проверяем опциональное обновление (release_client_version)
+                    // Проверяем опциональное обновление
                     val releaseVersionValue = infoToCheck.release_client_version
-                    if (releaseVersionValue != null) {
-                        val versionComparison = com.rimskiy.shared.utils.VersionUtils.compare(appVersion, releaseVersionValue)
-                        if (versionComparison < 0) {
-                            // Версия на сервере больше текущей
-                            releaseVersion = releaseVersionValue
-                            // Показываем опциональное обновление только если нет обязательного
-                            if (!showUpdateDialog) {
-                                showOptionalUpdateDialog = true
-                            }
-                            return@fold
+                    val serverVersion = infoToCheck.server_version
+                    
+                    println("[AppNavigation] Version check: appVersion=$appVersion, releaseVersion=$releaseVersionValue, serverVersion=$serverVersion")
+                    
+                    // Определяем версию для проверки: используем максимальную из release_client_version и server_version
+                    val versionToCheck = if (releaseVersionValue != null && serverVersion != null) {
+                        val releaseVsServer = com.rimskiy.shared.utils.VersionUtils.compare(releaseVersionValue, serverVersion)
+                        if (releaseVsServer >= 0) {
+                            releaseVersionValue
+                        } else {
+                            serverVersion
                         }
+                    } else {
+                        releaseVersionValue ?: serverVersion
                     }
                     
-                    // Автоматическое определение новой версии на основе server_version
-                    // Если release_client_version не указан или равен текущей версии,
-                    // проверяем server_version как потенциальную новую версию
-                    val serverVersion = infoToCheck.server_version
-                    if (serverVersion != null) {
-                        val versionComparison = com.rimskiy.shared.utils.VersionUtils.compare(appVersion, serverVersion)
+                    println("[AppNavigation] Version to check: $versionToCheck")
+                    
+                    if (versionToCheck != null) {
+                        val versionComparison = com.rimskiy.shared.utils.VersionUtils.compare(appVersion, versionToCheck)
+                        println("[AppNavigation] Version comparison result: $versionComparison (negative means update needed)")
                         if (versionComparison < 0) {
                             // Версия на сервере больше текущей - предлагаем обновление
-                            releaseVersion = serverVersion
+                            releaseVersion = versionToCheck
+                            println("[AppNavigation] Update available: $versionToCheck, showing dialog")
                             // Показываем опциональное обновление только если нет обязательного
                             if (!showUpdateDialog) {
                                 showOptionalUpdateDialog = true
                             }
+                        } else {
+                            println("[AppNavigation] No update needed: current version is up to date")
                         }
+                    } else {
+                        println("[AppNavigation] No version to check: both releaseVersion and serverVersion are null")
                     }
                 },
                 onFailure = { e ->
