@@ -668,7 +668,7 @@ async fn handle_code_command(
     // Автоматически обновляем telegram username в профиле пользователя
     if let Some(ref username) = telegram_username {
         // Обновляем только если username отличается
-        if user.telegram.as_ref().map(|s| s.as_str()) != Some(username.as_str()) {
+        if user.telegram.as_deref() != Some(username.as_str()) {
             let update_data = rimskiy_service::repository::UpdateUserData {
                 name: None,
                 phone_encrypted: None,
