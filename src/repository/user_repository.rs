@@ -8,6 +8,7 @@ use uuid::Uuid;
 pub trait UserRepository: Send + Sync {
     async fn find_by_phone_hash(&self, phone_hash: &str) -> AppResult<Option<User>>;
     async fn find_by_id(&self, id: Uuid) -> AppResult<Option<User>>;
+    async fn find_by_telegram(&self, telegram: &str) -> AppResult<Option<User>>;
     async fn create(&self, user: &CreateUserData) -> AppResult<User>;
     async fn update(&self, id: Uuid, update_data: &UpdateUserData) -> AppResult<User>;
     async fn get_plate_by_id(&self, id: Uuid) -> AppResult<Option<String>>;
@@ -81,6 +82,22 @@ impl UserRepository for PostgresUserRepository {
         if user.is_none() {
             tracing::warn!("User not found in database: {}", id);
         }
+
+        Ok(user)
+    }
+
+    async fn find_by_telegram(&self, telegram: &str) -> AppResult<Option<User>> {
+        let user = sqlx::query_as::<_, User>(
+            r#"
+            SELECT id, phone_encrypted, phone_hash, telegram, plate, name, show_contacts, owner_type, owner_info, departure_time, push_token, created_at, updated_at
+            FROM users
+            WHERE telegram = $1
+            LIMIT 1
+            "#
+        )
+        .bind(telegram)
+        .fetch_optional(&*self.db)
+        .await?;
 
         Ok(user)
     }

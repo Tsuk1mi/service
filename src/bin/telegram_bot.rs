@@ -711,34 +711,9 @@ async fn handle_code_command(
             let sms_configured =
                 std::env::var("SMS_API_URL").is_ok() && std::env::var("SMS_API_KEY").is_ok();
 
-            // Формируем сообщение в зависимости от того, отправлено ли SMS
-            let message = if sms_configured {
-                format!(
-                    "✅ Код авторизации для {}\n\n\
-                    📱 SMS отправлено на номер {}\n\n\
-                    🔐 Ваш код: {}\n\n\
-                    ⏰ Код действителен {} минут\n\n\
-                    💬 Код также отправлен в этом сообщении для удобства\n\n\
-                    📲 Введите этот код в приложении для завершения авторизации.",
-                    normalized_phone,
-                    normalized_phone,
-                    code,
-                    state.config.sms_code_expiration_minutes
-                )
-            } else {
-                format!(
-                    "✅ Код авторизации для {}\n\n\
-                    ⚠️ SMS провайдер не настроен, код отправлен только в Telegram\n\n\
-                    🔐 Ваш код: {}\n\n\
-                    ⏰ Код действителен {} минут\n\n\
-                    📲 Введите этот код в приложении для завершения авторизации.\n\n\
-                    💡 Для настройки автоматической отправки SMS укажите SMS_API_URL и SMS_API_KEY в .env",
-                    normalized_phone, code, state.config.sms_code_expiration_minutes
-                )
-            };
-
-            // Удаляем сообщение о обработке и отправляем финальное сообщение
+            // Удаляем сообщение о процессе и отправляем только код
             let _ = bot.delete_message(msg.chat.id, processing_msg.id).await;
+            let message = format!("🔐 Код авторизации: {}", code);
             bot.send_message(msg.chat.id, message).await?;
 
             tracing::info!(
@@ -797,10 +772,7 @@ async fn handle_block_command(
 
     // Отправляем сообщение о начале обработки
     let processing_msg = bot
-        .send_message(
-            msg.chat.id,
-            format!("⏳ Проверяю блокировку для номера {}...", normalized_plate),
-        )
+        .send_message(msg.chat.id, "⏳ Проверяю блокировку...")
         .await?;
 
     // Делаем запрос к API для проверки блокировки
@@ -896,7 +868,7 @@ async fn handle_apk_command(bot: &Bot, msg: &Message, state: &BotState) -> Respo
     );
     // Отправляем сообщение о начале обработки
     let processing_msg = bot
-        .send_message(msg.chat.id, "⏳ Загружаю последнюю версию приложения...")
+        .send_message(msg.chat.id, "⏳ Загружаю приложение...")
         .await?;
 
     // Пробуем отправить APK файл напрямую с диска
@@ -910,7 +882,6 @@ async fn handle_apk_command(bot: &Bot, msg: &Message, state: &BotState) -> Respo
                         .map(|s| s.to_string())
                         .unwrap_or_else(|| "app-release.apk".to_string());
 
-                    let file_name_clone = file_name.clone();
                     match bot
                         .send_document(
                             msg.chat.id,
@@ -922,13 +893,7 @@ async fn handle_apk_command(bot: &Bot, msg: &Message, state: &BotState) -> Respo
                             let _ = bot.delete_message(msg.chat.id, processing_msg.id).await;
                             bot.send_message(
                                 msg.chat.id,
-                                format!(
-                                    "✅ Приложение успешно отправлено!\n\n\
-                                    📱 Файл: {}\n\n\
-                                    💡 Установите APK файл на ваше Android устройство.\n\n\
-                                    ⚠️ Если установка не запускается автоматически, разрешите установку из неизвестных источников в настройках безопасности.",
-                                    file_name_clone
-                                ),
+                                "✅ Приложение отправлено. Установите APK файл.",
                             )
                             .await?;
                             true
@@ -970,53 +935,45 @@ async fn handle_apk_command(bot: &Bot, msg: &Message, state: &BotState) -> Respo
                                 .await
                             {
                                 Ok(_) => {
+                                    // Удаляем сообщение о процессе
+                                    let _ =
+                                        bot.delete_message(msg.chat.id, processing_msg.id).await;
+
                                     bot.send_message(
                                         msg.chat.id,
-                                        "✅ Приложение успешно отправлено!\n\n\
-                                        📱 Файл: app-release.apk\n\n\
-                                        💡 Установите APK файл на ваше Android устройство.\n\n\
-                                        ⚠️ Если установка не запускается автоматически, разрешите установку из неизвестных источников в настройках безопасности.",
+                                        "✅ Приложение отправлено. Установите APK файл.",
                                     )
                                     .await?;
                                 }
-                                Err(e) => {
-                                    let error_msg = format!(
-                                        "❌ Ошибка при отправке APK файла: {}\n\n\
-                                        Попробуйте скачать приложение по ссылке:\n{}",
-                                        e, download_url
-                                    );
-                                    bot.send_message(msg.chat.id, error_msg).await?;
+                                Err(_e) => {
+                                    let _ =
+                                        bot.delete_message(msg.chat.id, processing_msg.id).await;
+                                    bot.send_message(
+                                        msg.chat.id,
+                                        "❌ Ошибка при отправке приложения.",
+                                    )
+                                    .await?;
                                 }
                             }
                         }
                         Err(e) => {
-                            let error_msg = format!(
-                                "❌ Ошибка при загрузке APK файла: {}\n\n\
-                                Попробуйте позже или обратитесь в поддержку.",
-                                e
-                            );
-                            bot.send_message(msg.chat.id, error_msg).await?;
+                            let _ = bot.delete_message(msg.chat.id, processing_msg.id).await;
+                            bot.send_message(msg.chat.id, "❌ Ошибка при загрузке приложения.")
+                                .await?;
                             tracing::error!("Ошибка при загрузке APK через API: {}", e);
                         }
                     }
                 } else {
-                    let error_msg = format!(
-                        "❌ APK файл не найден на сервере.\n\n\
-                        Попробуйте позже или обратитесь в поддержку.\n\n\
-                        URL: {}",
-                        download_url
-                    );
-                    bot.send_message(msg.chat.id, error_msg).await?;
+                    let _ = bot.delete_message(msg.chat.id, processing_msg.id).await;
+                    bot.send_message(msg.chat.id, "❌ Приложение не найдено на сервере.")
+                        .await?;
                     tracing::warn!("APK файл не найден по URL: {}", download_url);
                 }
             }
             Err(e) => {
-                let error_msg = format!(
-                    "❌ Ошибка при запросе к серверу: {}\n\n\
-                    Попробуйте позже или обратитесь в поддержку.",
-                    e
-                );
-                bot.send_message(msg.chat.id, error_msg).await?;
+                let _ = bot.delete_message(msg.chat.id, processing_msg.id).await;
+                bot.send_message(msg.chat.id, "❌ Ошибка при запросе к серверу.")
+                    .await?;
                 tracing::error!("Ошибка запроса APK: {}", e);
             }
         }
@@ -1098,7 +1055,11 @@ async fn send_code_handler(
     State(state): State<Arc<BotState>>,
     Json(payload): Json<SendCodeRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    tracing::info!("Получен запрос на отправку кода для {}", payload.phone);
+    tracing::info!(
+        "🔔 Получен запрос на отправку кода для {} (код: {})",
+        payload.phone,
+        payload.code
+    );
 
     // Нормализуем номер телефона
     let normalized_phone = match ValidationService::validate_phone(&payload.phone) {
@@ -1116,71 +1077,68 @@ async fn send_code_handler(
     // Вычисляем phone_hash
     let phone_hash = phone_hash(&normalized_phone);
 
-    // Проверяем, что номер зарегистрирован в системе
-    let user = match state.user_repository.find_by_phone_hash(&phone_hash).await {
-        Ok(Some(user)) => user,
-        Ok(None) => {
-            tracing::warn!(
-                "Номер {} не зарегистрирован в системе (phone_hash: {})",
-                normalized_phone,
-                phone_hash
-            );
-            return Ok(Json(serde_json::json!({
-                "success": false,
-                "error": format!("Номер {} не зарегистрирован в системе", normalized_phone),
-                "sent_count": 0
-            })));
-        }
-        Err(e) => {
-            tracing::error!("Ошибка при проверке номера в БД: {}", e);
-            return Ok(Json(serde_json::json!({
-                "success": false,
-                "error": format!("Ошибка базы данных: {}", e),
-                "sent_count": 0
-            })));
-        }
-    };
+    // Пытаемся найти пользователя в системе (может не существовать при первой авторизации)
+    let user = state
+        .user_repository
+        .find_by_phone_hash(&phone_hash)
+        .await
+        .ok()
+        .flatten();
+    if user.is_some() {
+        tracing::info!(
+            "✅ Пользователь найден в системе по phone_hash: {}",
+            phone_hash
+        );
+    } else {
+        tracing::info!("⚠️ Пользователь не найден в системе по phone_hash: {} (это нормально при первой авторизации)", phone_hash);
+    }
 
     // Находим chat_id по phone_hash в БД
-    match state
+    let bot_user_by_phone = state
         .telegram_bot_repository
         .find_by_phone_hash(&phone_hash)
         .await
-    {
-        Ok(Some(bot_user)) => {
-            // Дополнительная проверка: убеждаемся, что номер привязан к правильному user_id
-            if let Some(registered_user_id) = bot_user.user_id {
-                if registered_user_id != user.id {
-                    tracing::warn!(
-                        "Попытка отправить код на номер, привязанный к другому пользователю: номер={}, зарегистрированный user_id={}, текущий user_id={}",
-                        normalized_phone,
-                        registered_user_id,
-                        user.id
-                    );
-                    return Ok(Json(serde_json::json!({
-                        "success": false,
-                        "error": "Номер привязан к другому пользователю",
-                        "sent_count": 0
-                    })));
+        .ok()
+        .flatten();
+
+    if bot_user_by_phone.is_some() {
+        tracing::info!("✅ Найден chat_id по phone_hash в telegram_bot_users");
+    } else {
+        tracing::info!(
+            "⚠️ Не найден chat_id по phone_hash в telegram_bot_users, ищем другими способами..."
+        );
+    }
+
+    match bot_user_by_phone {
+        Some(bot_user) => {
+            // Дополнительная проверка: если пользователь существует, убеждаемся, что номер привязан к правильному user_id
+            if let Some(ref user_data) = user {
+                if let Some(registered_user_id) = bot_user.user_id {
+                    if registered_user_id != user_data.id {
+                        tracing::warn!(
+                            "Попытка отправить код на номер, привязанный к другому пользователю: номер={}, зарегистрированный user_id={}, текущий user_id={}",
+                            normalized_phone,
+                            registered_user_id,
+                            user_data.id
+                        );
+                        return Ok(Json(serde_json::json!({
+                            "success": false,
+                            "error": "Номер привязан к другому пользователю",
+                            "sent_count": 0
+                        })));
+                    }
                 }
             }
 
             let chat = teloxide::types::ChatId(bot_user.chat_id);
-            let message = format!(
-                "🔐 Код авторизации для {}\n\n\
-                📱 Ваш код: {}\n\n\
-                ⏰ Код действителен {} минут\n\n\
-                📲 Введите этот код в приложении для завершения авторизации.",
-                normalized_phone, payload.code, state.config.sms_code_expiration_minutes
-            );
+            let message = format!("🔐 Код авторизации: {}", payload.code);
 
             match state.bot.send_message(chat, message).await {
                 Ok(_) => {
                     tracing::info!(
-                        "Код отправлен в Telegram для {} (chat_id: {}, user_id: {})",
+                        "Код отправлен в Telegram для {} (chat_id: {})",
                         normalized_phone,
-                        bot_user.chat_id,
-                        user.id
+                        bot_user.chat_id
                     );
                     Ok(Json(serde_json::json!({
                         "success": true,
@@ -1197,38 +1155,48 @@ async fn send_code_handler(
                 }
             }
         }
-        Ok(None) => {
-            // Пытаемся найти пользователя по Telegram username из профиля
+        None => {
+            // Пытаемся найти пользователя по Telegram username
             // Это позволяет отправлять код даже если пользователь не взаимодействовал с ботом
             let mut found_chat_id: Option<i64> = None;
 
-            if let Some(ref telegram_username) = user.telegram {
+            // Сначала пытаемся найти пользователя по username в таблице users
+            // Затем ищем его в telegram_bot_users
+            let telegram_username_to_search = user
+                .as_ref()
+                .and_then(|u| u.telegram.as_ref())
+                .map(|s| s.as_str());
+
+            if let Some(telegram_username) = telegram_username_to_search {
                 tracing::info!(
                     "Пытаемся найти пользователя по Telegram username: {}",
                     telegram_username
                 );
+
+                // Сначала ищем в telegram_bot_users по username
                 match state
                     .telegram_bot_repository
                     .find_by_telegram_username(telegram_username)
                     .await
                 {
                     Ok(Some(bot_user)) => {
-                        // Найден пользователь по username - используем его chat_id
+                        // Найден пользователь по username в telegram_bot_users - используем его chat_id
                         tracing::info!(
-                            "Найден пользователь по Telegram username {} (chat_id: {})",
+                            "Найден пользователь по Telegram username {} в telegram_bot_users (chat_id: {})",
                             telegram_username,
                             bot_user.chat_id
                         );
                         found_chat_id = Some(bot_user.chat_id);
 
                         // Автоматически привязываем номер к найденному chat_id
+                        let user_id = user.as_ref().map(|u| u.id).or(bot_user.user_id);
                         let _ = state
                             .telegram_bot_repository
                             .upsert(
                                 &phone_hash,
                                 bot_user.chat_id,
                                 Some(telegram_username),
-                                Some(user.id),
+                                user_id,
                             )
                             .await;
                         tracing::info!(
@@ -1238,10 +1206,47 @@ async fn send_code_handler(
                         );
                     }
                     Ok(None) => {
+                        // Не найден в telegram_bot_users, попробуем найти в users и затем в telegram_bot_users по user_id
                         tracing::info!(
-                            "Не найден пользователь по Telegram username: {}",
+                            "Не найден в telegram_bot_users, ищем в users по username: {}",
                             telegram_username
                         );
+                        if let Ok(Some(user_by_telegram)) = state
+                            .user_repository
+                            .find_by_telegram(telegram_username)
+                            .await
+                        {
+                            // Найден пользователь в users, ищем его в telegram_bot_users по user_id
+                            if let Ok(Some(bot_user_by_id)) = state
+                                .telegram_bot_repository
+                                .find_by_phone_hash(&format!("temp_{}", user_by_telegram.id))
+                                .await
+                            {
+                                // Найден по временной записи
+                                found_chat_id = Some(bot_user_by_id.chat_id);
+                                tracing::info!(
+                                    "Найден пользователь по user_id {} в telegram_bot_users (chat_id: {})",
+                                    user_by_telegram.id,
+                                    bot_user_by_id.chat_id
+                                );
+                            } else {
+                                // Ищем все записи с таким user_id
+                                if let Ok(bot_users) = state
+                                    .telegram_bot_repository
+                                    .find_temp_by_user_id(user_by_telegram.id)
+                                    .await
+                                {
+                                    if let Some(first_bot_user) = bot_users.first() {
+                                        found_chat_id = Some(first_bot_user.chat_id);
+                                        tracing::info!(
+                                            "Найден пользователь по временной записи user_id {} (chat_id: {})",
+                                            user_by_telegram.id,
+                                            first_bot_user.chat_id
+                                        );
+                                    }
+                                }
+                            }
+                        }
                     }
                     Err(e) => {
                         tracing::warn!("Ошибка при поиске по Telegram username: {}", e);
@@ -1252,22 +1257,14 @@ async fn send_code_handler(
             // Если нашли chat_id по username, отправляем код
             if let Some(chat_id) = found_chat_id {
                 let chat = teloxide::types::ChatId(chat_id);
-                let message = format!(
-                    "🔐 Код авторизации для {}\n\n\
-                    📱 Ваш код: {}\n\n\
-                    ⏰ Код действителен {} минут\n\n\
-                    📲 Введите этот код в приложении для завершения авторизации.\n\n\
-                    ✅ Номер автоматически привязан к вашему Telegram аккаунту!",
-                    normalized_phone, payload.code, state.config.sms_code_expiration_minutes
-                );
+                let message = format!("🔐 Код авторизации: {}", payload.code);
 
                 match state.bot.send_message(chat, message).await {
                     Ok(_) => {
                         tracing::info!(
-                            "Код автоматически отправлен в Telegram для {} (chat_id: {}, user_id: {}) по username",
+                            "Код автоматически отправлен в Telegram для {} (chat_id: {}) по username",
                             normalized_phone,
-                            chat_id,
-                            user.id
+                            chat_id
                         );
                         return Ok(Json(serde_json::json!({
                             "success": true,
@@ -1284,124 +1281,125 @@ async fn send_code_handler(
 
             // Пытаемся найти незарегистрированные записи (временные) для этого user_id
             // и автоматически привязать номер
-            tracing::info!(
-                "Не найден chat_id для номера {} (phone_hash: {}). Пытаемся найти незарегистрированные записи для user_id {}",
-                normalized_phone,
-                phone_hash,
-                user.id
-            );
+            if let Some(ref user_data) = user {
+                tracing::info!(
+                    "Не найден chat_id для номера {} (phone_hash: {}). Пытаемся найти незарегистрированные записи для user_id {}",
+                    normalized_phone,
+                    phone_hash,
+                    user_data.id
+                );
 
-            // Ищем временные записи для этого user_id
-            match state
-                .telegram_bot_repository
-                .find_temp_by_user_id(user.id)
-                .await
-            {
-                Ok(registrations) if !registrations.is_empty() => {
-                    // Найдены временные записи - автоматически привязываем номер к первому найденному chat_id
-                    let first_reg = &registrations[0];
-                    tracing::info!("Найдена временная регистрация для user_id {} (chat_id: {}). Автоматически привязываем номер {}", user.id, first_reg.chat_id, normalized_phone);
+                // Ищем временные записи для этого user_id
+                match state
+                    .telegram_bot_repository
+                    .find_temp_by_user_id(user_data.id)
+                    .await
+                {
+                    Ok(registrations) if !registrations.is_empty() => {
+                        // Найдены временные записи - автоматически привязываем номер к первому найденному chat_id
+                        let first_reg = &registrations[0];
+                        tracing::info!("Найдена временная регистрация для user_id {} (chat_id: {}). Автоматически привязываем номер {}", user_data.id, first_reg.chat_id, normalized_phone);
 
-                    // Обновляем запись, заменяя временный phone_hash на реальный
-                    match state
-                        .telegram_bot_repository
-                        .update_phone_hash(&first_reg.phone_hash, &phone_hash, first_reg.chat_id)
-                        .await
-                    {
-                        Ok(Some(updated_reg)) => {
-                            // Удаляем другие временные записи для этого user_id
-                            let _ = state
-                                .telegram_bot_repository
-                                .delete_temp_except(user.id, updated_reg.id)
-                                .await;
+                        // Обновляем запись, заменяя временный phone_hash на реальный
+                        match state
+                            .telegram_bot_repository
+                            .update_phone_hash(
+                                &first_reg.phone_hash,
+                                &phone_hash,
+                                first_reg.chat_id,
+                            )
+                            .await
+                        {
+                            Ok(Some(updated_reg)) => {
+                                // Удаляем другие временные записи для этого user_id
+                                let _ = state
+                                    .telegram_bot_repository
+                                    .delete_temp_except(user_data.id, updated_reg.id)
+                                    .await;
 
-                            // Обновляем user_id в новой записи
-                            let _ = state
-                                .telegram_bot_repository
-                                .update_user_id(&phone_hash, updated_reg.chat_id, user.id)
-                                .await;
+                                // Обновляем user_id в новой записи
+                                let _ = state
+                                    .telegram_bot_repository
+                                    .update_user_id(&phone_hash, updated_reg.chat_id, user_data.id)
+                                    .await;
 
-                            // Отправляем код в Telegram
-                            let chat = teloxide::types::ChatId(updated_reg.chat_id);
-                            let message = format!(
-                                "🔐 Код авторизации для {}\n\n\
-                                📱 Ваш код: {}\n\n\
-                                ⏰ Код действителен {} минут\n\n\
-                                📲 Введите этот код в приложении для завершения авторизации.\n\n\
-                                ✅ Номер автоматически привязан к вашему Telegram аккаунту!",
-                                normalized_phone,
-                                payload.code,
-                                state.config.sms_code_expiration_minutes
-                            );
+                                // Отправляем код в Telegram
+                                let chat = teloxide::types::ChatId(updated_reg.chat_id);
+                                let message = format!("🔐 Код авторизации: {}", payload.code);
 
-                            match state.bot.send_message(chat, message).await {
-                                Ok(_) => {
-                                    tracing::info!("Код автоматически отправлен в Telegram для {} (chat_id: {}, user_id: {})", normalized_phone, updated_reg.chat_id, user.id);
-                                    Ok(Json(serde_json::json!({
-                                        "success": true,
-                                        "sent_count": 1,
-                                        "auto_registered": true
-                                    })))
-                                }
-                                Err(e) => {
-                                    tracing::warn!(
-                                        "Не удалось отправить код в чат {}: {}",
-                                        updated_reg.chat_id,
-                                        e
-                                    );
-                                    Ok(Json(serde_json::json!({
-                                        "success": false,
-                                        "error": format!("Не удалось отправить сообщение: {}", e),
-                                        "sent_count": 0
-                                    })))
+                                match state.bot.send_message(chat, message).await {
+                                    Ok(_) => {
+                                        tracing::info!("Код автоматически отправлен в Telegram для {} (chat_id: {}, user_id: {})", normalized_phone, updated_reg.chat_id, user_data.id);
+                                        Ok(Json(serde_json::json!({
+                                            "success": true,
+                                            "sent_count": 1,
+                                            "auto_registered": true
+                                        })))
+                                    }
+                                    Err(_e) => {
+                                        tracing::warn!(
+                                            "Не удалось отправить код в чат {}: {}",
+                                            updated_reg.chat_id,
+                                            e
+                                        );
+                                        Ok(Json(serde_json::json!({
+                                            "success": false,
+                                            "error": format!("Не удалось отправить сообщение: {}", e),
+                                            "sent_count": 0
+                                        })))
+                                    }
                                 }
                             }
-                        }
-                        Ok(None) => {
-                            tracing::warn!("Не удалось обновить временную регистрацию");
-                            Ok(Json(serde_json::json!({
-                                "success": false,
-                                "error": "Не удалось привязать номер",
-                                "sent_count": 0
-                            })))
-                        }
-                        Err(e) => {
-                            tracing::error!("Ошибка при обновлении временной регистрации: {}", e);
-                            Ok(Json(serde_json::json!({
-                                "success": false,
-                                "error": format!("Ошибка базы данных: {}", e),
-                                "sent_count": 0
-                            })))
+                            Ok(None) => {
+                                tracing::warn!("Не удалось обновить временную регистрацию");
+                                Ok(Json(serde_json::json!({
+                                    "success": false,
+                                    "error": "Не удалось привязать номер",
+                                    "sent_count": 0
+                                })))
+                            }
+                            Err(e) => {
+                                tracing::error!(
+                                    "Ошибка при обновлении временной регистрации: {}",
+                                    e
+                                );
+                                Ok(Json(serde_json::json!({
+                                    "success": false,
+                                    "error": format!("Ошибка базы данных: {}", e),
+                                    "sent_count": 0
+                                })))
+                            }
                         }
                     }
+                    Ok(_) => {
+                        // Временных записей нет - пользователь еще не взаимодействовал с ботом
+                        tracing::info!("Пользователь с номером {} еще не взаимодействовал с ботом. Код будет отправлен только по SMS.", normalized_phone);
+                        Ok(Json(serde_json::json!({
+                            "success": false,
+                            "error": "Пользователь еще не взаимодействовал с ботом. Код отправлен по SMS.",
+                            "sent_count": 0,
+                            "sms_sent": true
+                        })))
+                    }
+                    Err(e) => {
+                        tracing::error!("Ошибка при поиске временных регистраций: {}", e);
+                        Ok(Json(serde_json::json!({
+                            "success": false,
+                            "error": format!("Ошибка базы данных: {}", e),
+                            "sent_count": 0
+                        })))
+                    }
                 }
-                Ok(_) => {
-                    // Временных записей нет - пользователь еще не взаимодействовал с ботом
-                    tracing::info!("Пользователь с номером {} еще не взаимодействовал с ботом. Код будет отправлен только по SMS.", normalized_phone);
-                    Ok(Json(serde_json::json!({
-                        "success": false,
-                        "error": "Пользователь еще не взаимодействовал с ботом. Код отправлен по SMS.",
-                        "sent_count": 0,
-                        "sms_sent": true
-                    })))
-                }
-                Err(e) => {
-                    tracing::error!("Ошибка при поиске временных регистраций: {}", e);
-                    Ok(Json(serde_json::json!({
-                        "success": false,
-                        "error": format!("Ошибка базы данных: {}", e),
-                        "sent_count": 0
-                    })))
-                }
+            } else {
+                // Пользователь не найден в системе и нет временных записей
+                tracing::info!("Пользователь с номером {} не найден в системе и не зарегистрирован в боте. Код будет отправлен только по SMS.", normalized_phone);
+                Ok(Json(serde_json::json!({
+                    "success": false,
+                    "error": "Пользователь не зарегистрирован в боте. Код отправлен по SMS.",
+                    "sent_count": 0,
+                    "sms_sent": true
+                })))
             }
-        }
-        Err(e) => {
-            tracing::error!("Ошибка при поиске пользователя в БД: {}", e);
-            Ok(Json(serde_json::json!({
-                "success": false,
-                "error": format!("Ошибка базы данных: {}", e),
-                "sent_count": 0
-            })))
         }
     }
 }
