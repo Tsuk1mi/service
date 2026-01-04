@@ -32,14 +32,12 @@ import androidx.compose.ui.Alignment
 @Composable
 fun AboutScreen(
     appVersion: String,
-    minRequiredVersion: String?,
     latestVersion: String?,
     downloadUrl: String?,
     isUpdateAvailable: Boolean,
     isDownloading: Boolean,
     downloadProgress: Int,
     downloadError: String?,
-    currentBaseUrl: String,
     onInstallUpdate: (String) -> Unit,
     onBack: () -> Unit
 ) {
@@ -74,21 +72,9 @@ fun AboutScreen(
             )
 
             InfoCard(
-                title = "Минимальная версия сервера",
-                subtitle = "Требуется для корректной работы",
-                value = minRequiredVersion ?: "Не указана"
-            )
-
-            InfoCard(
                 title = "Последняя версия",
                 subtitle = "Версия, доступная на сервере",
                 value = latestVersion ?: "Не указана"
-            )
-
-            InfoCard(
-                title = "Текущий сервер",
-                subtitle = "Базовый URL API",
-                value = currentBaseUrl
             )
 
             if (isUpdateAvailable && !downloadUrl.isNullOrBlank()) {

@@ -15,12 +15,18 @@ pub struct AuthStartRequest {
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct AuthStartResponse {
-    /// SMS код для подтверждения
-    #[schema(example = "1234")]
+    /// Код подтверждения (в проде не возвращается в ответе)
+    #[schema(example = "")]
     pub code: String,
     /// Время жизни кода в секундах
     #[schema(example = 600)]
     pub expires_in: u64,
+    /// Username Telegram бота (если нужен для получения кода)
+    #[schema(example = "your_bot_username")]
+    pub telegram_bot_username: Option<String>,
+    /// Deeplink на бота для привязки/получения кода (если пользователь ещё не открывал бота)
+    #[schema(example = "https://t.me/your_bot_username?start=p79001234567")]
+    pub telegram_deeplink: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Validate, ToSchema)]

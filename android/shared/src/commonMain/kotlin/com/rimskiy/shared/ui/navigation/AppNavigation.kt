@@ -720,14 +720,12 @@ fun AppNavigation(
                         is Screen.About -> {
                             AboutScreen(
                                 appVersion = appVersion,
-                                minRequiredVersion = minRequiredVersion,
                                 downloadUrl = downloadUrl,
                                 latestVersion = releaseVersion,
                                 isUpdateAvailable = isUpdateAvailable,
                                 isDownloading = isDownloading,
                                 downloadProgress = downloadProgress,
                                 downloadError = downloadError,
-                                currentBaseUrl = currentBaseUrl,
                                 onInstallUpdate = { url ->
                                     if (isDownloading) return@AboutScreen
                                     isDownloading = true
