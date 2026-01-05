@@ -46,6 +46,8 @@ fun AuthScreen(
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var receivedCode by remember { mutableStateOf<String?>(null) }
+    var telegramDeeplink by remember { mutableStateOf<String?>(null) }
+    var telegramBotFromServer by remember { mutableStateOf<String?>(null) }
     var phoneError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
@@ -206,6 +208,8 @@ fun AuthScreen(
                                     onSuccess = { response ->
                                         codeSent = true
                                         receivedCode = if (response.code.isNotBlank()) response.code else null
+                                        telegramDeeplink = response.telegram_deeplink
+                                        telegramBotFromServer = response.telegram_bot_username
                                         isLoading = false
                                     },
                                     onFailure = { e ->
@@ -246,49 +250,52 @@ fun AuthScreen(
                         )
                     }
 
-                    // Если код не возвращается (prod), подсказываем, где его искать
-                    if (receivedCode == null) {
-                        AppCard(
+                    // Показываем подсказку только если бот вернул pending (нет сессии/чата) и дал deeplink
+                    telegramDeeplink?.let { deeplink ->
+                        Column(
                             modifier = Modifier.fillMaxWidth(),
-                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f),
-                            elevation = 2.dp
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Text(
-                                    text = "Код приходит в Telegram.",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                Button(
-                                    onClick = {
-                                        val bot = telegramBotUsername?.trim()?.removePrefix("@").orEmpty()
-                                        val phoneToBind = phone.trim().ifEmpty { PhoneUtils.normalizePhone(phoneTextFieldValue.text) }
-                                        val command = "/code $phoneToBind"
-                                        val encoded = command
-                                            .replace("+", "%2B")
-                                            .replace("/", "%2F")
-                                            .replace(" ", "%20")
+                            Text(
+                                text = "Код приходит в Telegram. Откройте бота и отправьте команду привязки.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Button(
+                                onClick = {
+                                    // Если сервер дал deeplink — используем его.
+                                    // Иначе fallback на конструкцию по username (на всякий случай).
+                                    val bot = (telegramBotFromServer ?: telegramBotUsername)
+                                        ?.trim()
+                                        ?.removePrefix("@")
+                                        .orEmpty()
+                                    val phoneToBind =
+                                        phone.trim().ifEmpty { PhoneUtils.normalizePhone(phoneTextFieldValue.text) }
+                                    val command = "/code $phoneToBind"
+                                    val encoded = command
+                                        .replace("+", "%2B")
+                                        .replace("/", "%2F")
+                                        .replace(" ", "%20")
 
-                                        if (bot.isNotEmpty() && phoneToBind.isNotBlank()) {
-                                            platformActions.openUrl("https://t.me/$bot?text=$encoded")
-                                        } else {
-                                            platformActions.openUrl("tg://")
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Icon(Icons.Default.Send, contentDescription = null)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Открыть Telegram")
-                                }
-                                Text(
-                                    text = "Откроется чат с ботом и будет введена команда привязки. Останется нажать «Отправить».",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                    if (deeplink.isNotBlank()) {
+                                        platformActions.openUrl(deeplink)
+                                    } else if (bot.isNotEmpty() && phoneToBind.isNotBlank()) {
+                                        platformActions.openUrl("https://t.me/$bot?text=$encoded")
+                                    } else {
+                                        platformActions.openUrl("tg://")
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Send, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Открыть Telegram")
                             }
+                            Text(
+                                text = "Команда будет введена автоматически — останется нажать «Отправить».",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
 

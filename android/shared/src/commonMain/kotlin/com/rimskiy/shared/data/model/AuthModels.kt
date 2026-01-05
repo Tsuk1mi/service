@@ -10,7 +10,9 @@ data class AuthStartRequest(
 @Serializable
 data class AuthStartResponse(
     val code: String,
-    val expires_in: Long
+    val expires_in: Long,
+    val telegram_bot_username: String? = null,
+    val telegram_deeplink: String? = null
 )
 
 @Serializable
