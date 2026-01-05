@@ -3,7 +3,7 @@ use crate::error::{AppError, AppResult};
 use crate::models::user::User;
 use uuid::Uuid;
 
-/// Трейт для работы с пользователями в БД (DIP - Dependency Inversion Principle)
+/// Трейт для работы с пользователями в базе данных
 #[async_trait::async_trait]
 pub trait UserRepository: Send + Sync {
     async fn find_by_phone_hash(&self, phone_hash: &str) -> AppResult<Option<User>>;
@@ -14,6 +14,7 @@ pub trait UserRepository: Send + Sync {
     async fn get_plate_by_id(&self, id: Uuid) -> AppResult<Option<String>>;
 }
 
+/// Данные для создания нового пользователя
 pub struct CreateUserData {
     pub id: Uuid,
     pub phone_encrypted: String,
@@ -21,6 +22,7 @@ pub struct CreateUserData {
     pub plate: String,
 }
 
+/// Данные для обновления пользователя
 #[derive(Default)]
 pub struct UpdateUserData {
     pub name: Option<String>,
@@ -35,7 +37,6 @@ pub struct UpdateUserData {
     pub push_token: Option<String>,
 }
 
-/// Реализация репозитория пользователей
 #[derive(Clone)]
 pub struct PostgresUserRepository {
     db: DbPool,

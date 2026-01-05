@@ -1,3 +1,5 @@
+//! Модуль аутентификации и авторизации
+
 pub mod jwt;
 pub mod middleware;
 pub mod sms;

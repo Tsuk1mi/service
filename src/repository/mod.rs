@@ -1,3 +1,5 @@
+//! Репозитории для доступа к данным в БД
+
 pub mod block_repository;
 pub mod notification_repository;
 pub mod telegram_bot_repository;

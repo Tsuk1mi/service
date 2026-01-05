@@ -11,7 +11,7 @@ use serde_json::json;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-/// Сервис авторизации (SRP - Single Responsibility Principle)
+/// Сервис аутентификации и авторизации пользователей
 #[derive(Clone)]
 pub struct AuthService {
     sms_service: SmsService,

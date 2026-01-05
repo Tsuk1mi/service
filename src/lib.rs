@@ -1,3 +1,5 @@
+//! Backend сервис для управления перекрытыми автомобилями
+
 pub mod api;
 pub mod auth;
 pub mod config;

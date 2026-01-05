@@ -2,21 +2,21 @@ use crate::error::{AppError, AppResult};
 use base64::Engine;
 
 /// Распознаёт номер автомобиля с изображения
+///
+/// Использует внешний OCR API, если настроен через переменную окружения `OCR_API_URL`.
+/// В противном случае возвращает ошибку, требуя ручного ввода номера.
 pub async fn recognize_plate_from_image(image_data: &[u8]) -> AppResult<String> {
-    // Пробуем использовать внешний OCR сервис, если настроен
     if let Ok(ocr_api_url) = std::env::var("OCR_API_URL") {
         return recognize_via_api(&ocr_api_url, image_data).await;
     }
 
-    // Fallback: возвращаем ошибку, чтобы пользователь вводил номер вручную
-    // В реальном приложении здесь должен быть полноценный OCR (например, через Tesseract или ML модель)
     Err(AppError::Internal(
         "OCR not configured. Please set OCR_API_URL environment variable or enter plate manually"
             .to_string(),
     ))
 }
 
-/// Распознавание через внешний API
+/// Выполняет распознавание через внешний OCR API
 async fn recognize_via_api(api_url: &str, image_data: &[u8]) -> AppResult<String> {
     let client = reqwest::Client::new();
     let base64_image = base64::engine::general_purpose::STANDARD.encode(image_data);

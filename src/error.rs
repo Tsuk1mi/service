@@ -6,8 +6,10 @@ use axum::{
 use serde_json::json;
 use thiserror::Error;
 
+/// Тип-алиас для результата операций приложения
 pub type AppResult<T> = Result<T, AppError>;
 
+/// Ошибки приложения
 #[derive(Error, Debug)]
 pub enum AppError {
     #[error("Database error: {0}")]

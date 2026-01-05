@@ -1,7 +1,6 @@
 use crate::error::AppResult;
 use sqlx::PgPool;
 
-/// Автоматически создаёт БД и таблицы, если их нет
 pub async fn ensure_database_and_tables(pool: &PgPool) -> AppResult<()> {
     tracing::info!("Ensuring database schema exists...");
 

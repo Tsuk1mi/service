@@ -1,5 +1,6 @@
 use serde::Serialize;
 
+/// Сервис для отправки push-уведомлений через FCM (Firebase Cloud Messaging)
 #[derive(Clone)]
 pub struct PushService {
     pub fcm_server_key: Option<String>,

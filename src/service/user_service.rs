@@ -6,7 +6,7 @@ use crate::utils::encryption::Encryption;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-/// Сервис работы с пользователями (SRP)
+/// Сервис для работы с профилями пользователей
 #[derive(Clone)]
 pub struct UserService {
     encryption: Encryption,

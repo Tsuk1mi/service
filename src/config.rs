@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use std::env;
 
+/// Конфигурация приложения
 #[derive(Clone)]
 pub struct Config {
     pub database_url: String,
@@ -24,7 +25,6 @@ impl Config {
     pub fn from_env() -> Result<Self> {
         let database_url = env::var("DATABASE_URL").context("DATABASE_URL is required")?;
         let jwt_secret = env::var("JWT_SECRET").context("JWT_SECRET is required")?;
-        // Срок жизни JWT: по умолчанию 7 дней (10080 минут)
         let jwt_expiration_minutes = env::var("JWT_EXPIRATION_MINUTES")
             .unwrap_or_else(|_| "10080".to_string())
             .parse()

@@ -3,19 +3,31 @@ use crate::error::AppResult;
 use crate::models::notification::Notification;
 use uuid::Uuid;
 
-/// Трейт для работы с уведомлениями в БД
+/// Трейт для работы с уведомлениями пользователей
 #[async_trait::async_trait]
 pub trait NotificationRepository: Send + Sync {
+    /// Создает новое уведомление
     async fn create(&self, notification: &CreateNotificationData) -> AppResult<Notification>;
+
+    /// Получает список уведомлений пользователя
+    ///
+    /// # Параметры
+    /// * `user_id` - ID пользователя
+    /// * `unread_only` - Если true, возвращает только непрочитанные уведомления
     async fn find_by_user_id(
         &self,
         user_id: Uuid,
         unread_only: bool,
     ) -> AppResult<Vec<Notification>>;
+
+    /// Отмечает уведомление как прочитанное
     async fn mark_as_read(&self, notification_id: Uuid, user_id: Uuid) -> AppResult<()>;
+
+    /// Отмечает все уведомления пользователя как прочитанные
     async fn mark_all_as_read(&self, user_id: Uuid) -> AppResult<()>;
 }
 
+/// Данные для создания уведомления
 pub struct CreateNotificationData {
     pub user_id: Uuid,
     pub r#type: String,
@@ -24,7 +36,6 @@ pub struct CreateNotificationData {
     pub data: Option<serde_json::Value>,
 }
 
-/// Реализация репозитория уведомлений
 #[derive(Clone)]
 pub struct PostgresNotificationRepository {
     db: DbPool,

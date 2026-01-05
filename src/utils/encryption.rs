@@ -6,12 +6,20 @@ use anyhow::{Context, Result};
 use base64::Engine;
 use std::sync::Arc;
 
+/// Сервис шифрования данных (AES-256-GCM)
 #[derive(Clone)]
 pub struct Encryption {
     cipher: Arc<Aes256Gcm>,
 }
 
 impl Encryption {
+    /// Создает новый экземпляр сервиса шифрования
+    ///
+    /// # Параметры
+    /// * `key` - 64-символьная hex-строка (32 байта)
+    ///
+    /// # Ошибки
+    /// Возвращает ошибку, если ключ имеет неверную длину или формат
     pub fn new(key: &str) -> Result<Self> {
         // Преобразуем hex строку в 32 байта
         let key_bytes = hex::decode(key)?;
@@ -26,6 +34,9 @@ impl Encryption {
         })
     }
 
+    /// Шифрует строку
+    ///
+    /// Возвращает base64-кодированную строку, содержащую nonce и зашифрованные данные
     pub fn encrypt(&self, plaintext: &str) -> Result<String> {
         let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
         let ciphertext = self
@@ -40,6 +51,9 @@ impl Encryption {
         Ok(base64::engine::general_purpose::STANDARD.encode(combined))
     }
 
+    /// Расшифровывает строку
+    ///
+    /// Ожидает base64-кодированную строку, содержащую nonce и зашифрованные данные
     pub fn decrypt(&self, ciphertext: &str) -> Result<String> {
         let combined = base64::engine::general_purpose::STANDARD
             .decode(ciphertext)

@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
@@ -24,20 +25,24 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.Alignment
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AboutScreen(
     appVersion: String,
     minRequiredVersion: String?,
+    latestVersion: String?,
     downloadUrl: String?,
+    isUpdateAvailable: Boolean,
+    isDownloading: Boolean,
+    downloadProgress: Int,
+    downloadError: String?,
     currentBaseUrl: String,
+    onInstallUpdate: (String) -> Unit,
     onBack: () -> Unit
 ) {
-    val uriHandler = LocalUriHandler.current
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -75,19 +80,25 @@ fun AboutScreen(
             )
 
             InfoCard(
+                title = "Последняя версия",
+                subtitle = "Версия, доступная на сервере",
+                value = latestVersion ?: "Не указана"
+            )
+
+            InfoCard(
                 title = "Текущий сервер",
                 subtitle = "Базовый URL API",
                 value = currentBaseUrl
             )
 
-            if (!downloadUrl.isNullOrBlank()) {
+            if (isUpdateAvailable && !downloadUrl.isNullOrBlank()) {
                 ElevatedCard(
                     modifier = Modifier.fillMaxWidth(),
                     elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer
                     ),
-                    onClick = { uriHandler.openUri(downloadUrl) }
+                    onClick = { onInstallUpdate(downloadUrl) }
                 ) {
                     Column(
                         modifier = Modifier.padding(20.dp),
@@ -95,12 +106,40 @@ fun AboutScreen(
                     ) {
                         RowIconTitle(
                             icon = Icons.Default.Link,
-                            title = "Скачать обновление"
+                            title = "Установить обновление"
                         )
                         Divider(
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f),
                             thickness = 1.dp
                         )
+                        if (isDownloading) {
+                            androidx.compose.foundation.layout.Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                CircularProgressIndicator()
+                                Text(
+                                    text = "Загрузка: $downloadProgress%",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        } else {
+                            Text(
+                                text = "Нажмите, чтобы скачать APK с сервера и запустить установку.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+
+                        if (!downloadError.isNullOrBlank()) {
+                            Text(
+                                text = downloadError,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
                         Text(
                             text = downloadUrl,
                             style = MaterialTheme.typography.bodyMedium,

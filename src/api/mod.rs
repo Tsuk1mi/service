@@ -1,3 +1,5 @@
+//! HTTP API эндпоинты и роутеры
+
 pub mod app_download;
 pub mod auth;
 pub mod block;

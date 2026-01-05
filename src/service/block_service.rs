@@ -11,7 +11,7 @@ use crate::service::{
 use crate::utils::encryption::Encryption;
 use uuid::Uuid;
 
-/// Сервис работы с блокировками (SRP)
+/// Сервис для управления блокировками автомобилей
 #[derive(Clone)]
 pub struct BlockService {
     encryption: Encryption,

@@ -1,3 +1,5 @@
+//! Бизнес-логика и сервисы приложения
+
 pub mod auth_service;
 pub mod block_service;
 pub mod push_service;

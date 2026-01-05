@@ -77,6 +77,7 @@ fun AppNavigation(
     var downloadUrl by remember { mutableStateOf<String?>(null) }
     var telegramBotUsername by remember { mutableStateOf<String?>(null) }
     var isForceUpdate by remember { mutableStateOf(false) }
+    var isUpdateAvailable by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val platformActions = getPlatformActions()
     
@@ -99,6 +100,8 @@ fun AppNavigation(
                     if (minVersion != null && com.rimskiy.shared.utils.VersionUtils.compare(appVersion, minVersion) < 0) {
                         minRequiredVersion = minVersion
                         isForceUpdate = true
+                        isUpdateAvailable = true
+                        releaseVersion = minVersion
                         showUpdateDialog = true
                         showOptionalUpdateDialog = false
                         return@fold
@@ -126,10 +129,12 @@ fun AppNavigation(
                     
                     if (versionToCheck != null) {
                         val versionComparison = com.rimskiy.shared.utils.VersionUtils.compare(appVersion, versionToCheck)
+                        // Всегда сохраняем "актуальную" версию с сервера, даже если обновление не требуется
+                        releaseVersion = versionToCheck
+                        isUpdateAvailable = versionComparison < 0
                         println("[AppNavigation] Version comparison result: $versionComparison (negative means update needed)")
                         if (versionComparison < 0) {
                             // Версия на сервере больше текущей - предлагаем обновление
-                            releaseVersion = versionToCheck
                             println("[AppNavigation] Update available: $versionToCheck, showing dialog")
                             // Показываем опциональное обновление только если нет обязательного
                             if (!showUpdateDialog) {
@@ -139,6 +144,8 @@ fun AppNavigation(
                             println("[AppNavigation] No update needed: current version is up to date")
                         }
                     } else {
+                        releaseVersion = null
+                        isUpdateAvailable = false
                         println("[AppNavigation] No version to check: both releaseVersion and serverVersion are null")
                     }
                 },
@@ -767,7 +774,31 @@ fun AppNavigation(
                                 appVersion = appVersion,
                                 minRequiredVersion = minRequiredVersion,
                                 downloadUrl = downloadUrl,
+                                latestVersion = releaseVersion,
+                                isUpdateAvailable = isUpdateAvailable,
+                                isDownloading = isDownloading,
+                                downloadProgress = downloadProgress,
+                                downloadError = downloadError,
                                 currentBaseUrl = currentBaseUrl,
+                                onInstallUpdate = { url ->
+                                    if (isDownloading) return@AboutScreen
+                                    isDownloading = true
+                                    downloadProgress = 0
+                                    downloadError = null
+                                    platformActions.downloadAndInstallApk(
+                                        url = url,
+                                        onProgress = { progress ->
+                                            downloadProgress = progress
+                                        },
+                                        onComplete = {
+                                            isDownloading = false
+                                        },
+                                        onError = { error ->
+                                            isDownloading = false
+                                            downloadError = error
+                                        }
+                                    )
+                                },
                                 onBack = {
                                     currentScreen = Screen.Home
                                     selectedBottomNavItem = BottomNavItem.Home

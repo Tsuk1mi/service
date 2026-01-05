@@ -4,7 +4,7 @@ use crate::utils::{
     validate_plate as validate_plate_util,
 };
 
-/// Сервис валидации (SRP - Single Responsibility Principle)
+/// Сервис валидации входных данных (номера телефонов и автомобилей)
 pub struct ValidationService;
 
 impl ValidationService {

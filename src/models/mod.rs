@@ -1,3 +1,5 @@
+//! Модели данных и структуры для API
+
 pub mod auth;
 pub mod block;
 pub mod notification;

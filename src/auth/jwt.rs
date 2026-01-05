@@ -6,10 +6,14 @@ use uuid::Uuid;
 use crate::config::Config;
 use crate::error::{AppError, AppResult};
 
+/// JWT claims (данные токена)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
-    pub sub: Uuid, // user_id
+    /// ID пользователя (subject)
+    pub sub: Uuid,
+    /// Время истечения (expiration timestamp)
     pub exp: i64,
+    /// Время выдачи (issued at timestamp)
     pub iat: i64,
 }
 
@@ -26,6 +30,8 @@ impl Claims {
     }
 
     /// Проверяет, истек ли токен или скоро истечет (менее чем через 30 секунд)
+    ///
+    /// Используется для автоматического обновления токена на клиенте
     pub fn is_expired_or_expiring_soon(&self) -> bool {
         let now = Utc::now().timestamp();
         let expires_at = self.exp;
@@ -34,6 +40,7 @@ impl Claims {
     }
 }
 
+/// Создает новый JWT токен для пользователя
 pub fn create_token(user_id: Uuid, config: &Config) -> AppResult<String> {
     let claims = Claims::new(user_id, config.jwt_expiration_minutes);
     let key = EncodingKey::from_secret(config.jwt_secret.as_ref());
@@ -42,6 +49,7 @@ pub fn create_token(user_id: Uuid, config: &Config) -> AppResult<String> {
         .map_err(|e| AppError::Auth(format!("Failed to create token: {}", e)))
 }
 
+/// Проверяет и декодирует JWT токен
 pub fn verify_token(token: &str, config: &Config) -> AppResult<Claims> {
     let key = DecodingKey::from_secret(config.jwt_secret.as_ref());
     let mut validation = Validation::default();

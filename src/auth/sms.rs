@@ -5,7 +5,6 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-/// Простое хранилище кодов для MVP (в продакшене использовать Redis)
 pub type CodeStorage = Arc<RwLock<HashMap<String, CodeEntry>>>;
 
 #[derive(Clone)]

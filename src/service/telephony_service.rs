@@ -1,10 +1,10 @@
 use crate::config::Config;
 use reqwest::Client;
 
-/// Сервис для звонков через API телефонии
+/// Сервис для совершения звонков через API телефонии
 #[derive(Clone)]
 pub struct TelephonyService {
-    #[allow(dead_code)] // Поле может использоваться в будущем для конфигурации
+    #[allow(dead_code)]
     config: Config,
     client: Client,
 }

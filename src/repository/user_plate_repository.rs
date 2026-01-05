@@ -3,7 +3,7 @@ use crate::error::AppResult;
 use crate::models::user_plate::UserPlate;
 use uuid::Uuid;
 
-/// Трейт для работы с автомобилями пользователя (DIP)
+/// Трейт для работы с автомобилями пользователей
 #[async_trait::async_trait]
 pub trait UserPlateRepository: Send + Sync {
     async fn create(
@@ -27,7 +27,6 @@ pub trait UserPlateRepository: Send + Sync {
     ) -> AppResult<UserPlate>;
 }
 
-/// Реализация репозитория автомобилей пользователя
 #[derive(Clone)]
 pub struct PostgresUserPlateRepository {
     db: DbPool,
