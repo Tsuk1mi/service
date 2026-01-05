@@ -140,11 +140,6 @@ fun AboutScreen(
                                 color = MaterialTheme.colorScheme.error
                             )
                         }
-                        Text(
-                            text = downloadUrl,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
                     }
                 }
             }

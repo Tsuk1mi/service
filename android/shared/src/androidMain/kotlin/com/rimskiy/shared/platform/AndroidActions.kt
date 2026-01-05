@@ -2,10 +2,8 @@ package com.rimskiy.shared.platform
 
 import android.app.Activity
 import android.app.DownloadManager
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -158,23 +156,16 @@ actual class PlatformActions(private val context: Context) {
     
     actual fun downloadAndInstallApk(url: String, onProgress: (Int) -> Unit, onComplete: () -> Unit, onError: (String) -> Unit) {
         try {
-            if (context !is Activity) {
-                onError("Context is not an Activity")
-                return
-            }
-            
-            val activity = context as Activity
-            
             // Проверяем разрешение на установку из неизвестных источников (Android 8.0+)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                if (!activity.packageManager.canRequestPackageInstalls()) {
+                if (!context.packageManager.canRequestPackageInstalls()) {
                     // Запрашиваем разрешение
                     val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
-                        data = Uri.parse("package:${activity.packageName}")
+                        data = Uri.parse("package:${context.packageName}")
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK
                     }
                     try {
-                        activity.startActivity(intent)
+                        context.startActivity(intent)
                         onError("Пожалуйста, разрешите установку из неизвестных источников в настройках")
                     } catch (e: Exception) {
                         Log.e("PlatformActions", "Failed to open settings: ${e.message}", e)
@@ -215,78 +206,55 @@ actual class PlatformActions(private val context: Context) {
             }
             
             val downloadId = downloadManager.enqueue(request)
-            
-            // Отслеживаем прогресс загрузки
-            val receiver = object : BroadcastReceiver() {
-                override fun onReceive(context: Context?, intent: Intent?) {
-                    val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
-                    if (id == downloadId) {
-                        val query = DownloadManager.Query().setFilterById(downloadId)
-                        val cursor = downloadManager.query(query)
-                        
-                        if (cursor.moveToFirst()) {
-                            val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-                            when (status) {
-                                DownloadManager.STATUS_SUCCESSFUL -> {
-                                    context?.unregisterReceiver(this)
-                                    // Получаем путь к загруженному файлу
-                                    val downloadedFile = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                        val externalDir = context?.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-                                        if (externalDir != null) {
-                                            File(externalDir, "updates/app-update.apk")
-                                        } else {
-                                            apkFile
-                                        }
-                                    } else {
-                                        apkFile
-                                    }
-                                    // Устанавливаем APK
-                                    installApk(activity, downloadedFile, onComplete, onError)
-                                }
-                                DownloadManager.STATUS_FAILED -> {
-                                    context?.unregisterReceiver(this)
-                                    val reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))
-                                    onError("Ошибка загрузки: $reason")
-                                }
-                                DownloadManager.STATUS_RUNNING -> {
-                                    val bytesDownloaded = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
-                                    val totalBytes = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
-                                    if (totalBytes > 0) {
-                                        val progress = (bytesDownloaded * 100 / totalBytes).toInt()
-                                        onProgress(progress)
-                                    }
-                                }
-                            }
-                        }
-                        cursor.close()
-                    }
-                }
-            }
-            
-            context.registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
-            
-            // Также проверяем прогресс периодически
+
+            // Отслеживаем прогресс загрузки и запускаем установку через polling.
+            // Это надежнее на Android 13+ (там есть ограничения на broadcast receiver).
             CoroutineScope(Dispatchers.IO).launch {
                 while (true) {
                     kotlinx.coroutines.delay(500)
                     val query = DownloadManager.Query().setFilterById(downloadId)
                     val cursor = downloadManager.query(query)
-                    
-                    if (cursor.moveToFirst()) {
-                        val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-                        if (status == DownloadManager.STATUS_RUNNING) {
-                            val bytesDownloaded = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
-                            val totalBytes = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
+
+                    if (!cursor.moveToFirst()) {
+                        cursor.close()
+                        continue
+                    }
+
+                    val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                    when (status) {
+                        DownloadManager.STATUS_RUNNING -> {
+                            val bytesDownloaded = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
+                            val totalBytes = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
                             if (totalBytes > 0) {
                                 val progress = (bytesDownloaded * 100 / totalBytes).toInt()
-                                CoroutineScope(Dispatchers.Main).launch {
-                                    onProgress(progress)
-                                }
+                                CoroutineScope(Dispatchers.Main).launch { onProgress(progress) }
                             }
-                        } else if (status == DownloadManager.STATUS_SUCCESSFUL || status == DownloadManager.STATUS_FAILED) {
+                        }
+                        DownloadManager.STATUS_SUCCESSFUL -> {
                             cursor.close()
+                            CoroutineScope(Dispatchers.Main).launch { onProgress(100) }
+
+                            val downloadedFile = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                val externalDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+                                if (externalDir != null) File(externalDir, "updates/app-update.apk") else apkFile
+                            } else {
+                                apkFile
+                            }
+
+                            CoroutineScope(Dispatchers.Main).launch {
+                                installApk(context, downloadedFile, onComplete, onError)
+                            }
                             break
                         }
+                        DownloadManager.STATUS_FAILED -> {
+                            val reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))
+                            cursor.close()
+                            CoroutineScope(Dispatchers.Main).launch {
+                                onError("Ошибка загрузки: $reason")
+                            }
+                            break
+                        }
+                        else -> {}
                     }
                     cursor.close()
                 }
@@ -298,7 +266,7 @@ actual class PlatformActions(private val context: Context) {
         }
     }
     
-    private fun installApk(activity: Activity, apkFile: File, onComplete: () -> Unit, onError: (String) -> Unit) {
+    private fun installApk(context: Context, apkFile: File, onComplete: () -> Unit, onError: (String) -> Unit) {
         try {
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
@@ -306,8 +274,8 @@ actual class PlatformActions(private val context: Context) {
                 val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     // Используем FileProvider для Android 7.0+
                     FileProvider.getUriForFile(
-                        activity,
-                        "${activity.packageName}.fileprovider",
+                        context,
+                        "${context.packageName}.fileprovider",
                         apkFile
                     )
                 } else {
@@ -318,7 +286,7 @@ actual class PlatformActions(private val context: Context) {
                 setDataAndType(uri, "application/vnd.android.package-archive")
             }
             
-            activity.startActivity(intent)
+            context.startActivity(intent)
             onComplete()
         } catch (e: Exception) {
             Log.e("PlatformActions", "Failed to install APK: ${e.message}", e)
