@@ -152,13 +152,10 @@ async fn update_user_plate(
 ) -> AppResult<Json<UserPlateResponse>> {
     let user_id = auth_state.user_id;
 
+    // Обновляем только departure_time, поэтому если поле не передано — считаем это очисткой (NULL).
+    // Это повышает совместимость с клиентами, которые могут не отправлять `null` поле в JSON.
     let time = match payload.departure_time {
-        None => {
-            return Err(crate::error::AppError::Validation(
-                "Поле departure_time обязательно (передайте строку HH:MM или null чтобы очистить)"
-                    .to_string(),
-            ));
-        }
+        None => None,
         Some(None) => None,
         Some(Some(ref t)) if t.trim().is_empty() => None,
         Some(Some(ref t)) => Some(NaiveTime::parse_from_str(t, "%H:%M").map_err(|_| {
