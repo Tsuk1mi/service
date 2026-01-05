@@ -69,6 +69,7 @@ fun AppNavigation(
 ) {
     // Состояние проверки авторизации
     var isCheckingAuth by remember { mutableStateOf(true) }
+    var isAuthorizedSession by remember { mutableStateOf(false) }
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Auth) }
     var showUpdateDialog by remember { mutableStateOf(false) }
     var showOptionalUpdateDialog by remember { mutableStateOf(false) }
@@ -97,6 +98,10 @@ fun AppNavigation(
                     isForceUpdate = false
                     showUpdateDialog = false
                     showOptionalUpdateDialog = false
+
+                    // Показываем UI обновления только в авторизованной сессии
+                    val canShowUpdateUi =
+                        isAuthorizedSession && currentScreen !is Screen.Auth && !isCheckingAuth
                     
                     // Проверяем обязательное обновление (min_client_version)
                     val minVersion = infoToCheck.min_client_version
@@ -105,7 +110,7 @@ fun AppNavigation(
                         isForceUpdate = true
                         isUpdateAvailable = true
                         releaseVersion = minVersion
-                        showUpdateDialog = true
+                        if (canShowUpdateUi) showUpdateDialog = true
                         return@fold
                     }
                     
@@ -139,7 +144,7 @@ fun AppNavigation(
                             // Версия на сервере больше текущей - предлагаем обновление
                             println("[AppNavigation] Update available: $versionToCheck, showing dialog")
                             // Показываем опциональное обновление только если нет обязательного
-                            if (!showUpdateDialog) {
+                            if (!showUpdateDialog && canShowUpdateUi) {
                                 showOptionalUpdateDialog = true
                             }
                         } else {
@@ -163,6 +168,7 @@ fun AppNavigation(
     LaunchedEffect(Unit) {
         println("[AppNavigation] Checking authentication state...")
         isCheckingAuth = true
+        isAuthorizedSession = false
 
         // Версионная проверка
         checkVersionAndUpdate(info = null)
@@ -180,6 +186,7 @@ fun AppNavigation(
         getProfileUseCase().fold(
             onSuccess = { profile ->
                 println("[AppNavigation] Token is valid, showing home screen")
+                isAuthorizedSession = true
                 currentScreen = Screen.Home
             },
             onFailure = { error ->
@@ -188,6 +195,7 @@ fun AppNavigation(
                 scope.launch {
                     authRepository.logout()
                 }
+                isAuthorizedSession = false
                 currentScreen = Screen.Auth
             }
         )
@@ -212,7 +220,7 @@ fun AppNavigation(
     LaunchedEffect(Unit) {
         while (true) {
             kotlinx.coroutines.delay(5 * 60 * 1000) // 5 минут
-            if (!showUpdateDialog && !isCheckingAuth) {
+            if (isAuthorizedSession && !showUpdateDialog && !isCheckingAuth) {
                 checkVersionAndUpdate(info = null)
             }
         }

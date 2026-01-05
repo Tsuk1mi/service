@@ -2,9 +2,11 @@ package com.rimskiy.shared.platform
 
 import android.app.Activity
 import android.app.DownloadManager
+import android.app.PendingIntent
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInstaller
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -305,20 +307,97 @@ actual class PlatformActions(private val context: Context) {
     
     private fun installApk(context: Context, apkUri: Uri, onComplete: () -> Unit, onError: (String) -> Unit) {
         try {
-            val intent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
+            // Сохраняем коллбеки, чтобы получить асинхронный статус установки (success/cancel/fail)
+            ApkInstallResultCallbacks.complete = onComplete
+            ApkInstallResultCallbacks.error = { msg -> onError("Ошибка установки: $msg") }
+
+            // Пытаемся через PackageInstaller (надежнее, чем startActivity на некоторых прошивках)
+            val pm = context.packageManager
+            val installer = pm.packageInstaller
+            val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
+                setAppPackageName(context.packageName)
+            }
+            val sessionId = installer.createSession(params)
+            val session = installer.openSession(sessionId)
+
+            context.contentResolver.openInputStream(apkUri).use { input ->
+                if (input == null) {
+                    ApkInstallResultCallbacks.clear()
+                    onError("Ошибка установки: не удалось прочитать APK (inputStream == null)")
+                    return
+                }
+
+                session.openWrite("app-update.apk", 0, -1).use { out ->
+                    input.copyTo(out)
+                    session.fsync(out)
+                }
+            }
+
+            val resultIntent = Intent(context, ApkInstallReceiver::class.java)
+            val pending = PendingIntent.getBroadcast(
+                context,
+                sessionId,
+                resultIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            session.commit(pending.intentSender)
+            session.close()
+
+            // commit() успешно инициирован — останавливаем "загрузку" в UI
+            // (фактический результат придёт через ApkInstallReceiver)
+            onComplete()
+            return
+
+            val apkMime = "application/vnd.android.package-archive"
+
+            val installIntent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+                addFlags(Intent.FLAG_GRANT_PREFIX_URI_PERMISSION)
                 // На некоторых устройствах без ClipData пакетный установщик не получает permission
                 clipData = ClipData.newRawUri("APK", apkUri)
-                setDataAndType(apkUri, "application/vnd.android.package-archive")
+                setDataAndType(apkUri, apkMime)
                 putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
                 putExtra(Intent.EXTRA_INSTALLER_PACKAGE_NAME, context.packageName)
             }
-            
-            context.startActivity(intent)
-            onComplete()
+
+            // Явно раздаем доступ установщику (нужно на части устройств/прошивок)
+            val pm = context.packageManager
+            val handlers = pm.queryIntentActivities(installIntent, 0)
+            handlers.forEach { ri ->
+                val pkg = ri.activityInfo?.packageName ?: return@forEach
+                try {
+                    context.grantUriPermission(pkg, apkUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                } catch (e: Exception) {
+                    Log.w("PlatformActions", "Failed to grantUriPermission to $pkg: ${e.message}")
+                }
+            }
+
+            if (installIntent.resolveActivity(pm) != null) {
+                context.startActivity(installIntent)
+                onComplete()
+                return
+            }
+
+            // Fallback: старый способ через ACTION_VIEW
+            val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                clipData = ClipData.newRawUri("APK", apkUri)
+                setDataAndType(apkUri, apkMime)
+            }
+
+            if (viewIntent.resolveActivity(pm) != null) {
+                context.startActivity(viewIntent)
+                onComplete()
+            } else {
+                onError("Ошибка установки: не найден установщик пакетов")
+            }
         } catch (e: Exception) {
             Log.e("PlatformActions", "Failed to install APK: ${e.message}", e)
+            ApkInstallResultCallbacks.clear()
             onError("Ошибка установки: ${e.message}")
         }
     }
