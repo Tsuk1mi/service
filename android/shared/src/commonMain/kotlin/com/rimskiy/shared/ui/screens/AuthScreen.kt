@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import com.rimskiy.shared.domain.usecase.StartAuthUseCase
 import com.rimskiy.shared.domain.usecase.VerifyAuthUseCase
 import com.rimskiy.shared.platform.PlatformActions
+import com.rimskiy.shared.ui.components.AppCard
 import com.rimskiy.shared.utils.PhoneUtils
 import kotlinx.coroutines.launch
 
@@ -102,14 +103,11 @@ fun AuthScreen(
         Spacer(modifier = Modifier.height(40.dp))
 
         // Карточка с формой авторизации
-        ElevatedCard(
+        AppCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp),
-            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            )
+            elevation = 4.dp
         ) {
             Column(
                 modifier = Modifier.padding(28.dp),
@@ -249,12 +247,10 @@ fun AuthScreen(
 
                     // Если код не возвращается (prod), подсказываем, где его искать
                     if (receivedCode == null) {
-                        ElevatedCard(
+                        AppCard(
                             modifier = Modifier.fillMaxWidth(),
-                            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
-                            )
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f),
+                            elevation = 2.dp
                         ) {
                             Column(
                                 modifier = Modifier.padding(16.dp),

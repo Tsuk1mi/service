@@ -15,7 +15,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +26,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Alignment
+import com.rimskiy.shared.ui.components.AppCard
+import com.rimskiy.shared.ui.components.AppCardDefaults
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,12 +79,10 @@ fun AboutScreen(
             )
 
             if (isUpdateAvailable && !downloadUrl.isNullOrBlank()) {
-                ElevatedCard(
+                AppCard(
                     modifier = Modifier.fillMaxWidth(),
-                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    ),
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    elevation = 3.dp,
                     onClick = { onInstallUpdate(downloadUrl) }
                 ) {
                     Column(
@@ -133,7 +132,7 @@ fun AboutScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Здесь вы можете проверить текущую версию клиента, минимальную версию сервера и ссылку для обновления.",
+                text = "Здесь вы можете проверить текущую версию клиента и установить обновление при его наличии.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -143,13 +142,7 @@ fun AboutScreen(
 
 @Composable
 private fun InfoCard(title: String, subtitle: String, value: String) {
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
-    ) {
+    AppCard(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)

@@ -42,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.rimskiy.shared.platform.PlatformActions
+import com.rimskiy.shared.ui.components.AppCard
 import androidx.compose.material3.LinearProgressIndicator
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -257,7 +258,6 @@ fun HomeScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeNavCard(
     title: String,
@@ -265,13 +265,9 @@ private fun HomeNavCard(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     onClick: () -> Unit
 ) {
-    ElevatedCard(
+    AppCard(
         modifier = Modifier.fillMaxWidth(),
-        onClick = onClick,
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+        onClick = onClick
     ) {
         Row(
             modifier = Modifier
@@ -314,7 +310,6 @@ private fun HomeNavCard(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeNavTile(
     title: String,
@@ -323,13 +318,9 @@ private fun HomeNavTile(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    ElevatedCard(
+    AppCard(
         modifier = modifier.height(130.dp),
-        onClick = onClick,
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+        onClick = onClick
     ) {
         Column(
             modifier = Modifier

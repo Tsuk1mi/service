@@ -28,6 +28,7 @@ import com.rimskiy.shared.domain.usecase.UpdateProfileUseCase
 import com.rimskiy.shared.domain.usecase.*
 import com.rimskiy.shared.utils.PhoneUtils
 import com.rimskiy.shared.utils.PlateUtils
+import com.rimskiy.shared.ui.components.AppCard
 import com.rimskiy.shared.ui.components.TimePickerDialog
 import com.rimskiy.shared.data.local.SettingsManager
 import com.rimskiy.shared.platform.createSettings
@@ -190,13 +191,7 @@ fun ProfileScreen(
                 }
 
                 // Карточка с контактной информацией
-                ElevatedCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    )
-                ) {
+                AppCard(modifier = Modifier.fillMaxWidth()) {
                     Column(
                         modifier = Modifier.padding(20.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -301,13 +296,7 @@ fun ProfileScreen(
                 }
 
                 // Карточка с автомобилями
-                ElevatedCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    )
-                ) {
+                AppCard(modifier = Modifier.fillMaxWidth()) {
                     Column(
                         modifier = Modifier.padding(20.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -352,13 +341,7 @@ fun ProfileScreen(
                 }
 
                 // Карточка с настройками уведомлений
-                ElevatedCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    )
-                ) {
+                AppCard(modifier = Modifier.fillMaxWidth()) {
                     Column(
                         modifier = Modifier.padding(20.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
