@@ -1,5 +1,6 @@
 //! Вспомогательные утилиты
 
+pub mod apk;
 pub mod encryption;
 pub mod network;
 pub mod ocr;

@@ -19,6 +19,8 @@ pub struct Config {
     pub release_client_version: Option<String>,
     pub app_download_url: Option<String>,
     pub app_apk_path: Option<String>,
+    pub telegram_gateway_token: Option<String>,
+    pub telegram_gateway_base_url: Option<String>,
 }
 
 impl Config {
@@ -60,6 +62,8 @@ impl Config {
         let release_client_version = env::var("RELEASE_CLIENT_VERSION").ok();
         let app_download_url = env::var("APP_DOWNLOAD_URL").ok();
         let app_apk_path = env::var("APP_APK_PATH").ok();
+        let telegram_gateway_token = env::var("TELEGRAM_GATEWAY_TOKEN").ok();
+        let telegram_gateway_base_url = env::var("TELEGRAM_GATEWAY_BASE_URL").ok();
 
         Ok(Config {
             database_url,
@@ -77,6 +81,8 @@ impl Config {
             release_client_version,
             app_download_url,
             app_apk_path,
+            telegram_gateway_token,
+            telegram_gateway_base_url,
         })
     }
 }

@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import com.rimskiy.shared.domain.usecase.StartAuthUseCase
 import com.rimskiy.shared.domain.usecase.VerifyAuthUseCase
+import com.rimskiy.shared.platform.PlatformActions
 import com.rimskiy.shared.utils.PhoneUtils
 import kotlinx.coroutines.launch
 
@@ -32,6 +33,7 @@ fun AuthScreen(
     onAuthSuccess: () -> Unit,
     startAuthUseCase: StartAuthUseCase,
     verifyAuthUseCase: VerifyAuthUseCase,
+    platformActions: PlatformActions,
     currentBaseUrl: String,
     onChangeBaseUrl: (String) -> Unit
 ) {
@@ -240,9 +242,46 @@ fun AuthScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Введите код из SMS",
+                            text = "Введите код из Telegram",
                             style = MaterialTheme.typography.titleMedium
                         )
+                    }
+
+                    // Если код не возвращается (prod), подсказываем, где его искать
+                    if (receivedCode == null) {
+                        ElevatedCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "Код приходит в Telegram.",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Button(
+                                    onClick = {
+                                        // Пытаемся открыть приложение Telegram, если установлено
+                                        platformActions.openUrl("tg://")
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.Send, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Открыть Telegram")
+                                }
+                                Text(
+                                    text = "Если Telegram не установлен, откроется браузер.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
 
                     // Показываем код только в dev режиме

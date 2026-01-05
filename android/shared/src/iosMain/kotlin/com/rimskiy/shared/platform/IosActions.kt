@@ -4,6 +4,12 @@ import platform.UIKit.UIApplication
 import platform.Foundation.NSURL
 
 actual class PlatformActions {
+    actual fun openUrl(url: String) {
+        val cleanUrl = url.trim()
+        val nsUrl = NSURL.URLWithString(cleanUrl)
+        nsUrl?.let { UIApplication.sharedApplication.openURL(it) }
+    }
+
     actual fun openPhone(phone: String) {
         val url = NSURL.URLWithString("tel://$phone")
         url?.let { UIApplication.sharedApplication.openURL(it) }

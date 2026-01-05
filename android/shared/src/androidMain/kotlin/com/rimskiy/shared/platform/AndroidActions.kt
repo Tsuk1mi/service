@@ -19,6 +19,23 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 actual class PlatformActions(private val context: Context) {
+    actual fun openUrl(url: String) {
+        try {
+            val cleanUrl = url.trim()
+            if (cleanUrl.isEmpty()) {
+                Log.e("PlatformActions", "URL is empty")
+                return
+            }
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                data = Uri.parse(cleanUrl)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Log.e("PlatformActions", "Failed to open URL: ${e.message}", e)
+        }
+    }
+
     actual fun openPhone(phone: String) {
         try {
             val cleanPhone = phone.trim()

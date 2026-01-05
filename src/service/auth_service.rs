@@ -6,10 +6,27 @@ use crate::models::auth::{AuthStartResponse, AuthVerifyResponse, RefreshTokenRes
 use crate::repository::{CreateUserData, UserPlateRepository, UserRepository};
 use crate::service::validation_service::ValidationService;
 use crate::utils::encryption::Encryption;
+use chrono::{DateTime, Utc};
 use reqwest::Client;
 use serde_json::json;
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 use uuid::Uuid;
+
+#[derive(serde::Deserialize)]
+struct TelegramBotSendCodeResponse {
+    success: bool,
+    #[serde(default)]
+    error: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+struct GatewayRequest {
+    request_id: String,
+    expires_at: DateTime<Utc>,
+}
 
 /// Сервис аутентификации и авторизации пользователей
 #[derive(Clone)]
@@ -18,6 +35,7 @@ pub struct AuthService {
     encryption: Encryption,
     config: Config,
     http_client: Client,
+    gateway_requests: Arc<RwLock<HashMap<String, GatewayRequest>>>,
 }
 
 impl AuthService {
@@ -27,7 +45,123 @@ impl AuthService {
             encryption,
             config: config.clone(),
             http_client: Client::new(),
+            gateway_requests: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+
+    fn telegram_gateway_base_url(&self) -> String {
+        self.config
+            .telegram_gateway_base_url
+            .clone()
+            .unwrap_or_else(|| "https://gatewayapi.telegram.org/".to_string())
+    }
+
+    async fn send_code_via_telegram_gateway(&self, phone: &str) -> Result<String, String> {
+        let token = self
+            .config
+            .telegram_gateway_token
+            .as_ref()
+            .ok_or_else(|| "TELEGRAM_GATEWAY_TOKEN not configured".to_string())?;
+
+        let url = format!(
+            "{}sendVerificationMessage",
+            self.telegram_gateway_base_url()
+        );
+        let code_length = self.config.sms_code_length.clamp(4, 8);
+
+        let resp = self
+            .http_client
+            .post(url)
+            .bearer_auth(token)
+            .json(&json!({
+                "phone_number": phone,
+                "code_length": code_length
+            }))
+            .send()
+            .await
+            .map_err(|e| format!("Telegram Gateway request failed: {}", e))?;
+
+        let status = resp.status();
+        let body: serde_json::Value = resp
+            .json()
+            .await
+            .map_err(|e| format!("Telegram Gateway response parse failed: {}", e))?;
+
+        if !status.is_success() {
+            return Err(format!("Telegram Gateway HTTP error {}: {}", status, body));
+        }
+
+        if body.get("ok").and_then(|v| v.as_bool()) != Some(true) {
+            return Err(body
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Telegram Gateway returned ok=false")
+                .to_string());
+        }
+
+        let request_id = body
+            .get("result")
+            .and_then(|r| r.get("request_id"))
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| format!("Telegram Gateway missing request_id: {}", body))?;
+
+        Ok(request_id.to_string())
+    }
+
+    async fn verify_code_via_telegram_gateway(
+        &self,
+        request_id: &str,
+        code: &str,
+    ) -> Result<bool, String> {
+        let token = self
+            .config
+            .telegram_gateway_token
+            .as_ref()
+            .ok_or_else(|| "TELEGRAM_GATEWAY_TOKEN not configured".to_string())?;
+
+        let url = format!(
+            "{}checkVerificationStatus",
+            self.telegram_gateway_base_url()
+        );
+
+        let resp = self
+            .http_client
+            .post(url)
+            .bearer_auth(token)
+            .json(&json!({
+                "request_id": request_id,
+                "code": code
+            }))
+            .send()
+            .await
+            .map_err(|e| format!("Telegram Gateway request failed: {}", e))?;
+
+        let status = resp.status();
+        let body: serde_json::Value = resp
+            .json()
+            .await
+            .map_err(|e| format!("Telegram Gateway response parse failed: {}", e))?;
+
+        if !status.is_success() {
+            return Err(format!("Telegram Gateway HTTP error {}: {}", status, body));
+        }
+
+        if body.get("ok").and_then(|v| v.as_bool()) != Some(true) {
+            return Err(body
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Telegram Gateway returned ok=false")
+                .to_string());
+        }
+
+        let status_str = body
+            .get("result")
+            .and_then(|r| r.get("verification_status"))
+            .and_then(|vs| vs.get("status"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+
+        Ok(status_str == "CODE_VALID")
     }
 
     /// Отправляет код авторизации в Telegram бот
@@ -48,14 +182,25 @@ impl AuthService {
 
         match self.http_client.post(&bot_url).json(&payload).send().await {
             Ok(response) => {
-                if response.status().is_success() {
+                if !response.status().is_success() {
+                    return Err(format!(
+                        "Telegram bot returned error: {}",
+                        response.status()
+                    ));
+                }
+
+                let body: TelegramBotSendCodeResponse = response
+                    .json()
+                    .await
+                    .map_err(|e| format!("Failed to parse Telegram bot response: {}", e))?;
+
+                if body.success {
                     tracing::info!("Код отправлен в Telegram бот для {}", phone);
                     Ok(())
                 } else {
-                    Err(format!(
-                        "Telegram bot returned error: {}",
-                        response.status()
-                    ))
+                    Err(body
+                        .error
+                        .unwrap_or_else(|| "Telegram bot отказался отправить код".to_string()))
                 }
             }
             Err(e) => {
@@ -76,6 +221,32 @@ impl AuthService {
     pub async fn start_auth(&self, phone: &str) -> AppResult<AuthStartResponse> {
         let normalized_phone = ValidationService::validate_phone(phone)?;
 
+        let expires_in = (self.config.sms_code_expiration_minutes * 60) as u64;
+
+        // Основной канал: Telegram Gateway API (если настроен и не dev-режим)
+        if self.config.telegram_gateway_token.is_some() && !self.config.return_sms_code_in_response
+        {
+            let request_id = self
+                .send_code_via_telegram_gateway(&normalized_phone)
+                .await
+                .map_err(|e| AppError::Internal(e))?;
+
+            let expires_at =
+                Utc::now() + chrono::Duration::minutes(self.config.sms_code_expiration_minutes);
+            self.gateway_requests.write().await.insert(
+                normalized_phone.clone(),
+                GatewayRequest {
+                    request_id,
+                    expires_at,
+                },
+            );
+
+            return Ok(AuthStartResponse {
+                code: String::new(),
+                expires_in,
+            });
+        }
+
         // Генерируем код
         let code = self.sms_service.generate_code(&normalized_phone).await
             .map_err(|e| {
@@ -85,13 +256,21 @@ impl AuthService {
                 ))
             })?;
 
-        // Отправляем код в Telegram бот (если настроен)
+        // Отправляем код в Telegram бот (основной канал доставки)
         if let Err(e) = self.send_code_to_telegram(&normalized_phone, &code).await {
             tracing::warn!("Не удалось отправить код в Telegram бот: {}", e);
-            // Не прерываем процесс, если не удалось отправить в Telegram
+            if !self.config.return_sms_code_in_response {
+                let bot_username = std::env::var("TELEGRAM_BOT_USERNAME").ok();
+                let hint = match bot_username {
+                    Some(u) if !u.trim().is_empty() => format!(
+                        "Откройте Telegram бота @{} и нажмите Start, чтобы получить код.",
+                        u.trim().trim_start_matches('@')
+                    ),
+                    _ => "Откройте Telegram бота и нажмите Start, чтобы получить код.".to_string(),
+                };
+                return Err(AppError::Auth(format!("{}. {}", e, hint)));
+            }
         }
-
-        let expires_in = (self.config.sms_code_expiration_minutes * 60) as u64;
 
         // Возвращаем код в ответе только если return_sms_code_in_response = true (dev режим)
         // Иначе возвращаем пустую строку (код отправлен по SMS)
@@ -126,9 +305,43 @@ impl AuthService {
     ) -> AppResult<AuthVerifyResponse> {
         let normalized_phone = ValidationService::validate_phone(phone)?;
 
-        // Проверяем код
-        if !self.sms_service.verify_code(&normalized_phone, code).await {
-            return Err(AppError::Auth("Неверный код подтверждения".to_string()));
+        // Проверяем код (Telegram Gateway, если настроен и не dev-режим)
+        if self.config.telegram_gateway_token.is_some() && !self.config.return_sms_code_in_response
+        {
+            let entry = self
+                .gateway_requests
+                .read()
+                .await
+                .get(&normalized_phone)
+                .cloned();
+            let entry =
+                entry.ok_or_else(|| AppError::Auth("Код не запрошен или истёк".to_string()))?;
+            if entry.expires_at <= Utc::now() {
+                self.gateway_requests
+                    .write()
+                    .await
+                    .remove(&normalized_phone);
+                return Err(AppError::Auth("Код не запрошен или истёк".to_string()));
+            }
+
+            let is_valid = self
+                .verify_code_via_telegram_gateway(&entry.request_id, code)
+                .await
+                .map_err(|e| AppError::Auth(e))?;
+
+            if !is_valid {
+                return Err(AppError::Auth("Неверный код подтверждения".to_string()));
+            }
+
+            self.gateway_requests
+                .write()
+                .await
+                .remove(&normalized_phone);
+        } else {
+            // Fallback: локальная проверка кода (dev/старый режим)
+            if !self.sms_service.verify_code(&normalized_phone, code).await {
+                return Err(AppError::Auth("Неверный код подтверждения".to_string()));
+            }
         }
 
         // Хэш и шифруем телефон

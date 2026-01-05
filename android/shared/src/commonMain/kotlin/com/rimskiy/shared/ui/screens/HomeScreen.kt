@@ -32,12 +32,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.ExperimentalMaterial3Api
+import com.rimskiy.shared.platform.PlatformActions
+import androidx.compose.material3.LinearProgressIndicator
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,6 +50,8 @@ fun HomeScreen(
     appVersion: String,
     minRequiredVersion: String?,
     downloadUrl: String?,
+    isUpdateAvailable: Boolean,
+    platformActions: PlatformActions,
     onNavigateToProfile: () -> Unit,
     onNavigateToMyBlocks: () -> Unit,
     onNavigateToBlockedBy: () -> Unit,
@@ -52,7 +59,10 @@ fun HomeScreen(
     onNavigateToAbout: () -> Unit,
 ) {
     val scrollState = rememberScrollState()
-    val uriHandler = LocalUriHandler.current
+
+    var isDownloading by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableStateOf(0) }
+    var downloadError by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier = Modifier
@@ -130,18 +140,54 @@ fun HomeScreen(
                         }
                     }
                 }
-                downloadUrl?.let { url ->
-                    OutlinedButton(
-                        onClick = { uriHandler.openUri(url) },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Update,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Обновить приложение")
+                if (isUpdateAvailable && !downloadUrl.isNullOrBlank()) {
+                    if (isDownloading) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            LinearProgressIndicator(
+                                progress = downloadProgress / 100f,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Text(
+                                text = "Загрузка обновления: $downloadProgress%",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            downloadError?.let { err ->
+                                Text(
+                                    text = err,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = {
+                                isDownloading = true
+                                downloadProgress = 0
+                                downloadError = null
+                                platformActions.downloadAndInstallApk(
+                                    url = downloadUrl,
+                                    onProgress = { p -> downloadProgress = p },
+                                    onComplete = { isDownloading = false },
+                                    onError = { e ->
+                                        isDownloading = false
+                                        downloadError = e
+                                    }
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Update,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Обновить приложение")
+                        }
                     }
                 }
             }

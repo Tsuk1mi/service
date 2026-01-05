@@ -94,6 +94,9 @@ fun AppNavigation(
                     val infoToCheck = info ?: serverInfo
                     downloadUrl = infoToCheck.app_download_url
                     telegramBotUsername = infoToCheck.telegram_bot_username
+                    isForceUpdate = false
+                    showUpdateDialog = false
+                    showOptionalUpdateDialog = false
                     
                     // Проверяем обязательное обновление (min_client_version)
                     val minVersion = infoToCheck.min_client_version
@@ -103,7 +106,6 @@ fun AppNavigation(
                         isUpdateAvailable = true
                         releaseVersion = minVersion
                         showUpdateDialog = true
-                        showOptionalUpdateDialog = false
                         return@fold
                     }
                     
@@ -142,6 +144,7 @@ fun AppNavigation(
                             }
                         } else {
                             println("[AppNavigation] No update needed: current version is up to date")
+                            showOptionalUpdateDialog = false
                         }
                     } else {
                         releaseVersion = null
@@ -591,6 +594,7 @@ fun AppNavigation(
     
     when (currentScreen) {
         is Screen.Auth -> {
+            val platformActions = remember { getPlatformActions() }
             AuthScreen(
                 onAuthSuccess = { 
                     currentScreen = Screen.Home
@@ -598,6 +602,7 @@ fun AppNavigation(
                 },
                 startAuthUseCase = startAuthUseCase,
                 verifyAuthUseCase = verifyAuthUseCase,
+                platformActions = platformActions,
                 currentBaseUrl = currentBaseUrl,
                 onChangeBaseUrl = { newUrl ->
                     scope.launch {
@@ -659,11 +664,14 @@ fun AppNavigation(
                 Box(modifier = Modifier.padding(paddingValues)) {
                     when (currentScreen) {
                         is Screen.Home -> {
+                            val platformActions = remember { getPlatformActions() }
                             key(Screen.Home, screenRefreshKey) {
                                 HomeScreen(
                                     appVersion = appVersion,
                                     minRequiredVersion = minRequiredVersion,
                                     downloadUrl = downloadUrl,
+                                    isUpdateAvailable = isUpdateAvailable,
+                                    platformActions = platformActions,
                                     onNavigateToProfile = {
                                         currentScreen = Screen.Profile
                                         selectedBottomNavItem = BottomNavItem.Profile

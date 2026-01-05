@@ -1,4 +1,5 @@
 use crate::api::AppState;
+use crate::utils::apk::find_latest_apk;
 use axum::{
     body::Bytes,
     extract::State,
@@ -7,7 +8,6 @@ use axum::{
     routing::get,
     Router,
 };
-use std::path::Path;
 use tokio::fs;
 
 /// Роутер для скачивания приложения
@@ -28,12 +28,19 @@ pub fn app_download_router() -> Router<AppState> {
 )]
 pub async fn download_app(State(state): State<AppState>) -> Result<impl IntoResponse, StatusCode> {
     // Определяем путь к APK файлу
-    let apk_path = if let Some(custom_path) = &state.config.app_apk_path {
-        Path::new(custom_path)
-    } else {
-        // Стандартный путь к релизному APK
-        Path::new("./android/app/build/outputs/apk/release/app-release.apk")
-    };
+    //
+    // APP_APK_PATH может указывать как на файл, так и на директорию с версиями:
+    // app-release-v1.0.56.apk, app-release-v1.0.55.apk, ...
+    let path_or_dir =
+        state.config.app_apk_path.clone().unwrap_or_else(|| {
+            "./android/app/build/outputs/apk/release/app-release.apk".to_string()
+        });
+
+    let selected = find_latest_apk(&path_or_dir)
+        .await
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    let apk_path = selected.path;
 
     // Проверяем существование файла
     if !apk_path.exists() {
@@ -42,7 +49,7 @@ pub async fn download_app(State(state): State<AppState>) -> Result<impl IntoResp
     }
 
     // Читаем файл
-    let file_contents = fs::read(apk_path).await.map_err(|e| {
+    let file_contents = fs::read(&apk_path).await.map_err(|e| {
         tracing::error!("Ошибка при чтении APK файла: {:?}, ошибка: {}", apk_path, e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
