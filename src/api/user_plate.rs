@@ -152,16 +152,21 @@ async fn update_user_plate(
 ) -> AppResult<Json<UserPlateResponse>> {
     let user_id = auth_state.user_id;
 
-    let time = payload
-        .departure_time
-        .as_ref()
-        .map(|t| NaiveTime::parse_from_str(t, "%H:%M"))
-        .transpose()
-        .map_err(|_| {
+    let time = match payload.departure_time {
+        None => {
+            return Err(crate::error::AppError::Validation(
+                "Поле departure_time обязательно (передайте строку HH:MM или null чтобы очистить)"
+                    .to_string(),
+            ));
+        }
+        Some(None) => None,
+        Some(Some(ref t)) if t.trim().is_empty() => None,
+        Some(Some(ref t)) => Some(NaiveTime::parse_from_str(t, "%H:%M").map_err(|_| {
             crate::error::AppError::Validation(
                 "Некорректное время выезда, используйте HH:MM".to_string(),
             )
-        })?;
+        })?),
+    };
 
     let updated = state
         .user_plate_repository

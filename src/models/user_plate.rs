@@ -32,7 +32,11 @@ pub struct CreateUserPlateRequest {
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateUserPlateRequest {
-    pub departure_time: Option<String>,
+    /// Семантика PATCH:
+    /// - None -> поле не передано, не изменять
+    /// - Some(None) -> очистить (NULL)
+    /// - Some(Some("HH:MM")) -> установить
+    pub departure_time: Option<Option<String>>,
 }
 
 #[derive(Debug, Serialize)]

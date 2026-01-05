@@ -37,7 +37,7 @@ impl UserService {
         })?;
         tracing::info!("User found: {} (plate: {:?})", user_id, user.plate);
 
-        // Получаем актуальный основной номер из user_plates (источник истины)
+        // Получаем актуальный основной номер и время выезда из user_plates (источник истины)
         if let Ok(Some(primary_plate)) =
             user_plate_repository.find_primary_by_user_id(user_id).await
         {
@@ -66,6 +66,9 @@ impl UserService {
                     user = updated;
                 }
             }
+
+            // Для UI/логики "время выезда" берём из основного номера (user_plates)
+            user.departure_time = primary_plate.departure_time;
         } else {
             // Если нет основного автомобиля, создаем его из users.plate (если номер есть и валиден)
             if let Some(ref plate) = user.plate {
@@ -253,18 +256,37 @@ impl UserService {
             }
         }
 
-        // Парсинг времени выезда
-        let departure_time = if let Some(ref time_str) = normalized_request.departure_time {
-            if time_str.is_empty() {
-                None
-            } else {
-                chrono::NaiveTime::parse_from_str(time_str, "%H:%M")
-                    .map_err(|_| AppError::Validation("Неверный формат времени выезда. Используйте формат HH:MM (например, 18:30)".to_string()))?
-                    .into()
+        // Парсинг времени выезда (PATCH семантика):
+        // - None -> не изменять
+        // - Some(None) / Some(Some("")) -> очистить
+        // - Some(Some("HH:MM")) -> установить
+        let departure_time_update: Option<Option<chrono::NaiveTime>> =
+            match normalized_request.departure_time {
+                None => None,
+                // null трактуем как "поле не передано" (для совместимости с клиентом)
+                Some(None) => None,
+                // пустая строка -> очистить
+                Some(Some(ref s)) if s.trim().is_empty() => Some(None),
+                Some(Some(ref s)) => Some(Some(
+                    chrono::NaiveTime::parse_from_str(s, "%H:%M").map_err(|_| {
+                        AppError::Validation(
+                            "Неверный формат времени выезда. Используйте формат HH:MM (например, 18:30)"
+                                .to_string(),
+                        )
+                    })?,
+                )),
+            };
+
+        // Если время выезда меняется — синхронизируем его с основным номером в user_plates
+        if let Some(ref dt) = departure_time_update {
+            if let Ok(Some(primary_plate)) =
+                user_plate_repository.find_primary_by_user_id(user_id).await
+            {
+                let _ = user_plate_repository
+                    .update_departure_time(primary_plate.id, user_id, *dt)
+                    .await;
             }
-        } else {
-            None
-        };
+        }
 
         // Обновление в БД
         let update_data = UpdateUserData {
@@ -276,7 +298,7 @@ impl UserService {
             show_contacts: normalized_request.show_contacts,
             owner_type: normalized_request.owner_type,
             owner_info: normalized_request.owner_info,
-            departure_time,
+            departure_time: departure_time_update,
             push_token: None,
         };
 
@@ -308,6 +330,10 @@ impl UserService {
         // Берем первого пользователя с этим номером (обычно он один)
         if let Some(user_plate) = user_plates.first() {
             if let Some(user) = repository.find_by_id(user_plate.user_id).await? {
+                // Время выезда относится к конкретному номеру, поэтому берём его из user_plates
+                let mut user = user;
+                user.departure_time = user_plate.departure_time;
+
                 let phone_decrypted = user
                     .phone_encrypted
                     .as_ref()

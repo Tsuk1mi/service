@@ -105,64 +105,39 @@ impl AuthService {
                 ))
             })?;
 
-    let bot_port = self
-        .config
-        .server_port
-        .checked_add(1)
-        .ok_or_else(|| AppError::Internal("Port overflow".to_string()))?;
-    let bot_url = format!("http://localhost:{}/send_code", bot_port);
-    let payload = json!({
-        "phone": normalized_phone,
-        "code": code
-    });
+        let bot_resp = self
+            .send_code_to_telegram(&normalized_phone, &code)
+            .await
+            .map_err(AppError::Internal)?;
 
-    let resp = self
-        .http_client
-        .post(&bot_url)
-        .json(&payload)
-        .send()
-        .await
-        .map_err(|e| AppError::Internal(format!("Telegram bot недоступен: {}", e)))?;
+        if !bot_resp.success && !bot_resp.pending {
+            return Err(AppError::Internal(bot_resp.error.unwrap_or_else(|| {
+                "Telegram bot отказался отправить код".to_string()
+            })));
+        }
 
-    if !resp.status().is_success() {
-        return Err(AppError::Internal(format!(
-            "Telegram bot returned error: {}",
-            resp.status()
-        )));
-    }
+        let bot_username = std::env::var("TELEGRAM_BOT_USERNAME")
+            .ok()
+            .map(|s| s.trim().trim_start_matches('@').to_string())
+            .filter(|s| !s.is_empty());
 
-    let bot_resp: TelegramBotSendCodeResponse = resp
-        .json()
-        .await
-        .map_err(|e| AppError::Internal(format!("Failed to parse Telegram bot response: {}", e)))?;
-
-    if !bot_resp.success && !bot_resp.pending {
-        return Err(AppError::Internal(
-            bot_resp
-                .error
-                .unwrap_or_else(|| "Telegram bot отказался отправить код".to_string()),
-        ));
-    }
-
-    let bot_username = std::env::var("TELEGRAM_BOT_USERNAME")
-        .ok()
-        .map(|s| s.trim().trim_start_matches('@').to_string())
-        .filter(|s| !s.is_empty());
-
-    let telegram_deeplink = if bot_resp.pending {
-        bot_username.as_ref().map(|u| {
-            let digits: String = normalized_phone.chars().filter(|c| c.is_ascii_digit()).collect();
-            format!("https://t.me/{}?start=p{}", u, digits)
-        })
-    } else {
-        None
-    };
+        let telegram_deeplink = if bot_resp.pending {
+            bot_username.as_ref().map(|u| {
+                let digits: String = normalized_phone
+                    .chars()
+                    .filter(|c| c.is_ascii_digit())
+                    .collect();
+                format!("https://t.me/{}?start=p{}", u, digits)
+            })
+        } else {
+            None
+        };
 
         Ok(AuthStartResponse {
             expires_in,
-        code: String::new(),
-        telegram_bot_username: bot_username,
-        telegram_deeplink,
+            code: String::new(),
+            telegram_bot_username: bot_username,
+            telegram_deeplink,
         })
     }
 
@@ -176,10 +151,10 @@ impl AuthService {
     ) -> AppResult<AuthVerifyResponse> {
         let normalized_phone = ValidationService::validate_phone(phone)?;
 
-    // Проверяем код, сохранённый при start_auth
-    if !self.sms_service.verify_code(&normalized_phone, code).await {
-        return Err(AppError::Auth("Неверный код подтверждения".to_string()));
-    }
+        // Проверяем код, сохранённый при start_auth
+        if !self.sms_service.verify_code(&normalized_phone, code).await {
+            return Err(AppError::Auth("Неверный код подтверждения".to_string()));
+        }
 
         // Хэш и шифруем телефон
         let phone_hash = Self::phone_hash(&normalized_phone);

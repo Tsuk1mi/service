@@ -2,6 +2,7 @@ package com.rimskiy.shared.platform
 
 import android.app.Activity
 import android.app.DownloadManager
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -234,15 +235,50 @@ actual class PlatformActions(private val context: Context) {
                             cursor.close()
                             CoroutineScope(Dispatchers.Main).launch { onProgress(100) }
 
-                            val downloadedFile = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                val externalDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-                                if (externalDir != null) File(externalDir, "updates/app-update.apk") else apkFile
-                            } else {
-                                apkFile
-                            }
-
                             CoroutineScope(Dispatchers.Main).launch {
-                                installApk(context, downloadedFile, onComplete, onError)
+                                // Самый надежный вариант: взять URI из DownloadManager
+                                val downloadedUri = try {
+                                    downloadManager.getUriForDownloadedFile(downloadId)
+                                } catch (e: Exception) {
+                                    Log.e("PlatformActions", "Failed to get downloaded file uri: ${e.message}", e)
+                                    null
+                                }
+
+                                if (downloadedUri != null) {
+                                    installApk(context, downloadedUri, onComplete, onError)
+                                    return@launch
+                                }
+
+                                // Fallback: пробуем ожидаемый путь файла
+                                val downloadedFile = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                    val externalDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+                                    if (externalDir != null) File(externalDir, "updates/app-update.apk") else apkFile
+                                } else {
+                                    apkFile
+                                }
+
+                                if (!downloadedFile.exists()) {
+                                    onError("Ошибка установки: файл не найден (${downloadedFile.absolutePath})")
+                                    return@launch
+                                }
+
+                                val fileUri = try {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                                        FileProvider.getUriForFile(
+                                            context,
+                                            "${context.packageName}.fileprovider",
+                                            downloadedFile
+                                        )
+                                    } else {
+                                        Uri.fromFile(downloadedFile)
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e("PlatformActions", "Failed to create FileProvider uri: ${e.message}", e)
+                                    onError("Ошибка установки: не удалось получить доступ к файлу (${e.message})")
+                                    return@launch
+                                }
+
+                                installApk(context, fileUri, onComplete, onError)
                             }
                             break
                         }
@@ -266,24 +302,14 @@ actual class PlatformActions(private val context: Context) {
         }
     }
     
-    private fun installApk(context: Context, apkFile: File, onComplete: () -> Unit, onError: (String) -> Unit) {
+    private fun installApk(context: Context, apkUri: Uri, onComplete: () -> Unit, onError: (String) -> Unit) {
         try {
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
-                
-                val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    // Используем FileProvider для Android 7.0+
-                    FileProvider.getUriForFile(
-                        context,
-                        "${context.packageName}.fileprovider",
-                        apkFile
-                    )
-                } else {
-                    // Для старых версий Android
-                    Uri.fromFile(apkFile)
-                }
-                
-                setDataAndType(uri, "application/vnd.android.package-archive")
+            val intent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                // На некоторых устройствах без ClipData пакетный установщик не получает permission
+                clipData = ClipData.newRawUri("APK", apkUri)
+                setDataAndType(apkUri, "application/vnd.android.package-archive")
             }
             
             context.startActivity(intent)

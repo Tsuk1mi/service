@@ -90,7 +90,7 @@ pub struct UpdateUserRequest {
     pub owner_info: Option<serde_json::Value>,
     /// Время выезда в формате HH:MM
     #[schema(example = "08:00")]
-    pub departure_time: Option<String>,
+    pub departure_time: Option<Option<String>>,
     /// Push token устройства
     pub push_token: Option<String>,
 }
