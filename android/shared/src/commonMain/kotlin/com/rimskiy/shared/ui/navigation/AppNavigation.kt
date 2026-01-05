@@ -330,7 +330,8 @@ fun AppNavigation(
                                     },
                                     onComplete = {
                                         isDownloading = false
-                                        showUpdateDialog = false
+                                        // Установщик открывается в системном окне — не закрываем диалог автоматически,
+                                        // чтобы пользователь мог повторить попытку, если отменил установку.
                                     },
                                     onError = { error ->
                                         isDownloading = false
@@ -469,7 +470,7 @@ fun AppNavigation(
                                     },
                                     onComplete = {
                                         isDownloading = false
-                                        showOptionalUpdateDialog = false
+                                        // Установщик открывается в системном окне — не закрываем диалог автоматически.
                                     },
                                     onError = { error ->
                                         isDownloading = false
@@ -522,6 +523,7 @@ fun AppNavigation(
                 verifyAuthUseCase = verifyAuthUseCase,
                 platformActions = platformActions,
                 currentBaseUrl = currentBaseUrl,
+                telegramBotUsername = telegramBotUsername,
                 onChangeBaseUrl = { newUrl ->
                     scope.launch {
                         authRepository.logout()

@@ -36,6 +36,7 @@ fun AuthScreen(
     verifyAuthUseCase: VerifyAuthUseCase,
     platformActions: PlatformActions,
     currentBaseUrl: String,
+    telegramBotUsername: String? = null,
     onChangeBaseUrl: (String) -> Unit
 ) {
     var phone by remember { mutableStateOf("") }
@@ -262,8 +263,19 @@ fun AuthScreen(
                                 )
                                 Button(
                                     onClick = {
-                                        // Пытаемся открыть приложение Telegram, если установлено
-                                        platformActions.openUrl("tg://")
+                                        val bot = telegramBotUsername?.trim()?.removePrefix("@").orEmpty()
+                                        val phoneToBind = phone.trim().ifEmpty { PhoneUtils.normalizePhone(phoneTextFieldValue.text) }
+                                        val command = "/code $phoneToBind"
+                                        val encoded = command
+                                            .replace("+", "%2B")
+                                            .replace("/", "%2F")
+                                            .replace(" ", "%20")
+
+                                        if (bot.isNotEmpty() && phoneToBind.isNotBlank()) {
+                                            platformActions.openUrl("https://t.me/$bot?text=$encoded")
+                                        } else {
+                                            platformActions.openUrl("tg://")
+                                        }
                                     },
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
@@ -272,7 +284,7 @@ fun AuthScreen(
                                     Text("Открыть Telegram")
                                 }
                                 Text(
-                                    text = "Если Telegram не установлен, откроется браузер.",
+                                    text = "Откроется чат с ботом и будет введена команда привязки. Останется нажать «Отправить».",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

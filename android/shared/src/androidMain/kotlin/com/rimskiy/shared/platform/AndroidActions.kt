@@ -194,6 +194,7 @@ actual class PlatformActions(private val context: Context) {
             val request = DownloadManager.Request(Uri.parse(url)).apply {
                 setTitle("Обновление приложения")
                 setDescription("Загрузка новой версии приложения...")
+                setMimeType("application/vnd.android.package-archive")
                 // Для Android 10+ используем getExternalFilesDir, для старых версий - setDestinationUri
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, "updates/app-update.apk")
@@ -310,6 +311,8 @@ actual class PlatformActions(private val context: Context) {
                 // На некоторых устройствах без ClipData пакетный установщик не получает permission
                 clipData = ClipData.newRawUri("APK", apkUri)
                 setDataAndType(apkUri, "application/vnd.android.package-archive")
+                putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
+                putExtra(Intent.EXTRA_INSTALLER_PACKAGE_NAME, context.packageName)
             }
             
             context.startActivity(intent)
