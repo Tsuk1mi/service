@@ -25,6 +25,8 @@ fun createHttpClient(): HttpClient = HttpClient(Android) {
             Json {
                 ignoreUnknownKeys = true
                 isLenient = true
+                // Нужно для PATCH-запросов, где `null` имеет смысл (например, очистить departure_time)
+                explicitNulls = true
             }
         )
     }
