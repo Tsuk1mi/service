@@ -31,7 +31,7 @@ pub fn validate_plate(plate: &str) -> bool {
         return false;
     }
 
-    if !chars[4..6].iter().all(|c| is_letter(c)) {
+    if !chars[4..6].iter().all(is_letter) {
         return false;
     }
 

@@ -437,8 +437,8 @@ async fn main() -> anyhow::Result<()> {
                         return Ok(());
                     }
 
-                    let phone_candidate = if digits.starts_with('8') {
-                        format!("+7{}", &digits[1..])
+                    let phone_candidate = if let Some(stripped) = digits.strip_prefix('8') {
+                        format!("+7{}", stripped)
                     } else if digits.starts_with('7') {
                         format!("+{}", digits)
                     } else if digits.starts_with('9') {

@@ -229,7 +229,7 @@ impl AuthService {
             let request_id = self
                 .send_code_via_telegram_gateway(&normalized_phone)
                 .await
-                .map_err(|e| AppError::Internal(e))?;
+                .map_err(AppError::Internal)?;
 
             let expires_at =
                 Utc::now() + chrono::Duration::minutes(self.config.sms_code_expiration_minutes);
@@ -327,7 +327,7 @@ impl AuthService {
             let is_valid = self
                 .verify_code_via_telegram_gateway(&entry.request_id, code)
                 .await
-                .map_err(|e| AppError::Auth(e))?;
+                .map_err(AppError::Auth)?;
 
             if !is_valid {
                 return Err(AppError::Auth("Неверный код подтверждения".to_string()));
