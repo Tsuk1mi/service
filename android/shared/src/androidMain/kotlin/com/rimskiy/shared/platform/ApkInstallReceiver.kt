@@ -27,10 +27,10 @@ class ApkInstallReceiver : BroadcastReceiver() {
                 // который приходит в EXTRA_INTENT.
                 val confirmIntent: Intent? = try {
                     if (Build.VERSION.SDK_INT >= 33) {
-                        intent.getParcelableExtra(PackageInstaller.EXTRA_INTENT, Intent::class.java)
+                        intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
                     } else {
                         @Suppress("DEPRECATION")
-                        intent.getParcelableExtra(PackageInstaller.EXTRA_INTENT) as? Intent
+                        intent.getParcelableExtra(Intent.EXTRA_INTENT) as? Intent
                     }
                 } catch (e: Exception) {
                     Log.e("ApkInstallReceiver", "Failed to read EXTRA_INTENT: ${e.message}", e)
