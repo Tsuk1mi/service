@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
+import android.os.Build
 import android.util.Log
 
 /**
@@ -22,9 +23,36 @@ class ApkInstallReceiver : BroadcastReceiver() {
                 ApkInstallResultCallbacks.clear()
             }
             PackageInstaller.STATUS_PENDING_USER_ACTION -> {
-                // Обычно сюда приходит Intent, который нужно запустить, но на большинстве устройств
-                // commit() сам инициирует UI. Оставляем лог для диагностики.
-                Log.i("ApkInstallReceiver", "Pending user action")
+                // На большинстве устройств (и особенно Samsung) нужно вручную запустить Intent подтверждения установки,
+                // который приходит в EXTRA_INTENT.
+                val confirmIntent: Intent? = try {
+                    if (Build.VERSION.SDK_INT >= 33) {
+                        intent.getParcelableExtra(PackageInstaller.EXTRA_INTENT, Intent::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        intent.getParcelableExtra(PackageInstaller.EXTRA_INTENT) as? Intent
+                    }
+                } catch (e: Exception) {
+                    Log.e("ApkInstallReceiver", "Failed to read EXTRA_INTENT: ${e.message}", e)
+                    null
+                }
+
+                if (confirmIntent == null) {
+                    Log.e("ApkInstallReceiver", "Pending user action but confirm intent is null")
+                    ApkInstallResultCallbacks.error?.invoke("Требуется подтверждение установки, но intent не получен")
+                    ApkInstallResultCallbacks.clear()
+                    return
+                }
+
+                Log.i("ApkInstallReceiver", "Pending user action: starting confirmation UI")
+                confirmIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                try {
+                    context.startActivity(confirmIntent)
+                } catch (e: Exception) {
+                    Log.e("ApkInstallReceiver", "Failed to start confirmation UI: ${e.message}", e)
+                    ApkInstallResultCallbacks.error?.invoke("Не удалось открыть окно подтверждения установки: ${e.message}")
+                    ApkInstallResultCallbacks.clear()
+                }
             }
             else -> {
                 val human = when (status) {
