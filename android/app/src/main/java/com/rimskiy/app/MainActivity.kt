@@ -97,8 +97,6 @@ class MainActivity : ComponentActivity() {
         
         // Инициализируем контекст для PlatformActions (используем Activity context для startActivity)
         AndroidContextHolder.context = this
-        AndroidContextHolder.ddnsUsername = ddnsUsername
-        AndroidContextHolder.ddnsPassword = ddnsPassword
         
         requestRuntimePermissions()
         
@@ -116,6 +114,11 @@ class MainActivity : ComponentActivity() {
         } catch (e: Exception) {
             null
         }
+
+        // Прокидываем (опциональные) DDNS креды в PlatformActions для кейса,
+        // когда APK скачивается через DownloadManager и нужны HTTP-заголовки.
+        AndroidContextHolder.ddnsUsername = ddnsUsername
+        AndroidContextHolder.ddnsPassword = ddnsPassword
         
         setContent {
             RimskiyApp(
