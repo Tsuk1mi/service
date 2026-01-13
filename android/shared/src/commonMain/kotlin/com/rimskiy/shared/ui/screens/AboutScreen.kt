@@ -33,7 +33,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun AboutScreen(
     appVersion: String,
-    minRequiredVersion: String?,
+    latestVersion: String?,
     downloadUrl: String?,
     availableUpdateVersion: String?,
     isUpdateAvailable: Boolean,
@@ -41,7 +41,6 @@ fun AboutScreen(
     downloadProgress: Int,
     downloadError: String?,
     onInstallUpdate: () -> Unit,
-    currentBaseUrl: String,
     onBack: () -> Unit
 ) {
     Column(
@@ -75,15 +74,9 @@ fun AboutScreen(
             )
 
             InfoCard(
-                title = "Минимальная версия сервера",
-                subtitle = "Требуется для корректной работы",
-                value = minRequiredVersion ?: "Не указана"
-            )
-
-            InfoCard(
-                title = "Текущий сервер",
-                subtitle = "Базовый URL API",
-                value = currentBaseUrl
+                title = "Последняя версия",
+                subtitle = "Последняя доступная версия",
+                value = latestVersion ?: "Не удалось определить"
             )
 
             if (isUpdateAvailable && !downloadUrl.isNullOrBlank()) {
@@ -161,7 +154,7 @@ fun AboutScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Здесь вы можете проверить текущую версию клиента, минимальную версию сервера и ссылку для обновления.",
+                text = "Здесь вы можете проверить текущую и последнюю версию приложения.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

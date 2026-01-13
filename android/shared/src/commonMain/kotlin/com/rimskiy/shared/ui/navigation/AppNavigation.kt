@@ -75,6 +75,7 @@ fun AppNavigation(
     var minRequiredVersion by remember { mutableStateOf<String?>(null) }
     var releaseVersion by remember { mutableStateOf<String?>(null) }
     var availableUpdateVersion by remember { mutableStateOf<String?>(null) }
+    var latestClientVersion by remember { mutableStateOf<String?>(null) }
     var downloadUrl by remember { mutableStateOf<String?>(null) }
     var telegramBotUsername by remember { mutableStateOf<String?>(null) }
     var isForceUpdate by remember { mutableStateOf(false) }
@@ -105,6 +106,7 @@ fun AppNavigation(
                         isForceUpdate = true
                         releaseVersion = minVersion
                         availableUpdateVersion = minVersion
+                        latestClientVersion = minVersion
                         hasUpdate = true
                         isUpdateAvailable = true
                         showUpdateDialog = true
@@ -121,17 +123,13 @@ fun AppNavigation(
                     
                     println("[AppNavigation] Version check: appVersion=$appVersion, releaseVersion=$releaseVersionValue, serverVersion=$serverVersion")
                     
-                    // Определяем версию для проверки: используем максимальную из release_client_version и server_version
-                    val versionToCheck = if (releaseVersionValue != null && serverVersion != null) {
-                        val releaseVsServer = com.rimskiy.shared.utils.VersionUtils.compare(releaseVersionValue, serverVersion)
-                        if (releaseVsServer >= 0) {
-                            releaseVersionValue
-                        } else {
-                            serverVersion
-                        }
-                    } else {
-                        releaseVersionValue ?: serverVersion
-                    }
+                    // Версия для проверки обновления клиента:
+                    // - приоритет release_client_version (это именно версия Android-клиента на сервере)
+                    // - fallback на server_version только если release_client_version отсутствует
+                    val versionToCheck = releaseVersionValue ?: serverVersion
+
+                    // Сохраняем "последнюю" версию, даже если обновление не требуется
+                    latestClientVersion = versionToCheck
                     
                     println("[AppNavigation] Version to check: $versionToCheck")
                     
@@ -798,7 +796,7 @@ fun AppNavigation(
                         is Screen.About -> {
                             AboutScreen(
                                 appVersion = appVersion,
-                                minRequiredVersion = minRequiredVersion,
+                                latestVersion = latestClientVersion,
                                 downloadUrl = downloadUrl,
                                 availableUpdateVersion = availableUpdateVersion,
                                 isUpdateAvailable = isUpdateAvailable,
@@ -806,7 +804,6 @@ fun AppNavigation(
                                 downloadProgress = downloadProgress,
                                 downloadError = downloadError,
                                 onInstallUpdate = { startUpdateDownload() },
-                                currentBaseUrl = currentBaseUrl,
                                 onBack = {
                                     currentScreen = Screen.Home
                                     selectedBottomNavItem = BottomNavItem.Home

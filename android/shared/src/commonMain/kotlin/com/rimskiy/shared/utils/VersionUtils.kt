@@ -1,18 +1,26 @@
 package com.rimskiy.shared.utils
 
 object VersionUtils {
-    // Простое сравнение версий вида "1.2.3"
+    // Сравнение версий клиента.
+    // Важно: поддерживаем строки вроде "v1.2.3", "1.2.3+45", "1.2.3 (45)"
+    // (берём первые 3 числовых компонента).
     fun compare(v1: String?, v2: String?): Int {
-        if (v1 == null || v2 == null) return 0
-        val a = v1.split(".")
-        val b = v2.split(".")
-        val max = maxOf(a.size, b.size)
-        for (i in 0 until max) {
-            val x = a.getOrNull(i)?.toIntOrNull() ?: 0
-            val y = b.getOrNull(i)?.toIntOrNull() ?: 0
-            if (x != y) return x.compareTo(y)
+        val a = parse3(v1)
+        val b = parse3(v2)
+        for (i in 0..2) {
+            if (a[i] != b[i]) return a[i].compareTo(b[i])
         }
         return 0
+    }
+
+    private fun parse3(v: String?): IntArray {
+        if (v.isNullOrBlank()) return intArrayOf(0, 0, 0)
+        val nums = Regex("\\d+").findAll(v).mapNotNull { it.value.toIntOrNull() }.toList()
+        return intArrayOf(
+            nums.getOrNull(0) ?: 0,
+            nums.getOrNull(1) ?: 0,
+            nums.getOrNull(2) ?: 0
+        )
     }
     
     /**
@@ -20,17 +28,9 @@ object VersionUtils {
      * Например: "1.0.0" -> "1.0.1", "1.2.3" -> "1.2.4"
      */
     fun incrementVersion(version: String): String {
-        val parts = version.split(".")
-        if (parts.isEmpty()) return version
-        
-        val lastIndex = parts.size - 1
-        val lastPart = parts[lastIndex].toIntOrNull() ?: 0
-        val incremented = lastPart + 1
-        
-        val newParts = parts.toMutableList()
-        newParts[lastIndex] = incremented.toString()
-        
-        return newParts.joinToString(".")
+        val parsed = parse3(version)
+        parsed[2] = parsed[2] + 1
+        return "${parsed[0]}.${parsed[1]}.${parsed[2]}"
     }
     
     /**
