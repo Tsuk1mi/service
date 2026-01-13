@@ -10,12 +10,17 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Log
+import android.util.Base64
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.rimskiy.shared.di.AndroidContextHolder
 import java.io.File
+import java.io.FileOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 
 actual class PlatformActions(private val context: Context) {
     actual fun openPhone(phone: String) {
@@ -196,6 +201,20 @@ actual class PlatformActions(private val context: Context) {
                 setAllowedOverMetered(true)
                 setAllowedOverRoaming(true)
             }
+
+            // Если сервер/прокси защищён DDNS Basic Auth — добавляем заголовки,
+            // иначе DownloadManager получит 401/403 и загрузка “тихо” упадёт.
+            val ddnsUser = AndroidContextHolder.ddnsUsername
+            val ddnsPass = AndroidContextHolder.ddnsPassword
+            if (!ddnsUser.isNullOrBlank() && !ddnsPass.isNullOrBlank()) {
+                val credentials = "$ddnsUser:$ddnsPass"
+                val encoded = Base64.encodeToString(credentials.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+                val basic = "Basic $encoded"
+                request.addRequestHeader("Authorization", basic)
+                // Некоторые прокси требуют именно Proxy-Authorization
+                request.addRequestHeader("Proxy-Authorization", basic)
+                Log.i("PlatformActions", "DDNS Basic Auth headers added to DownloadManager request")
+            }
             
             val downloadId = downloadManager.enqueue(request)
 
@@ -235,7 +254,18 @@ actual class PlatformActions(private val context: Context) {
                             DownloadManager.STATUS_FAILED -> {
                                 val reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))
                                 cursor.close()
-                                withContext(Dispatchers.Main) { onError("Ошибка загрузки: $reason") }
+                                // Fallback: чтобы получить нормальный HTTP-код/текст и не зависеть от DownloadManager,
+                                // пробуем скачать сами.
+                                val fallbackOk = tryManualHttpDownload(url, apkFile) { p ->
+                                    withContext(Dispatchers.Main) { onProgress(p) }
+                                }
+                                withContext(Dispatchers.Main) {
+                                    if (fallbackOk) {
+                                        installDownloadedApk(activity, Uri.fromFile(apkFile), apkFile, onComplete, onError)
+                                    } else {
+                                        onError("Ошибка загрузки (DownloadManager reason=$reason). Частая причина: сервер не отдаёт APK (404). Проверьте APP_APK_PATH на сервере.")
+                                    }
+                                }
                                 break
                             }
                             else -> {
@@ -253,6 +283,70 @@ actual class PlatformActions(private val context: Context) {
         } catch (e: Exception) {
             Log.e("PlatformActions", "Failed to download APK: ${e.message}", e)
             onError("Ошибка загрузки: ${e.message}")
+        }
+    }
+
+    private suspend fun tryManualHttpDownload(
+        url: String,
+        destFile: File,
+        onProgress: suspend (Int) -> Unit
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            destFile.parentFile?.mkdirs()
+            if (destFile.exists()) destFile.delete()
+
+            val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                instanceFollowRedirects = true
+                connectTimeout = 15_000
+                readTimeout = 60_000
+                requestMethod = "GET"
+                setRequestProperty("Accept", "application/vnd.android.package-archive")
+                // Если когда-то включите DDNS basic-auth — оно автоматически добавится через holder
+                val ddnsUser = AndroidContextHolder.ddnsUsername
+                val ddnsPass = AndroidContextHolder.ddnsPassword
+                if (!ddnsUser.isNullOrBlank() && !ddnsPass.isNullOrBlank()) {
+                    val credentials = "$ddnsUser:$ddnsPass"
+                    val encoded = Base64.encodeToString(credentials.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+                    setRequestProperty("Authorization", "Basic $encoded")
+                    setRequestProperty("Proxy-Authorization", "Basic $encoded")
+                }
+            }
+
+            val code = conn.responseCode
+            if (code !in 200..299) {
+                val msg = try {
+                    conn.errorStream?.bufferedReader()?.readText()
+                } catch (_: Exception) {
+                    null
+                }
+                Log.e("PlatformActions", "Manual download failed: HTTP $code, body=${msg?.take(300)}")
+                return@withContext false
+            }
+
+            val total = conn.contentLengthLong.takeIf { it > 0 } ?: -1L
+            conn.inputStream.use { input ->
+                FileOutputStream(destFile).use { output ->
+                    val buf = ByteArray(8 * 1024)
+                    var read: Int
+                    var downloaded = 0L
+                    var lastProgress = -1
+                    while (input.read(buf).also { read = it } != -1) {
+                        output.write(buf, 0, read)
+                        downloaded += read.toLong()
+                        if (total > 0) {
+                            val p = ((downloaded * 100) / total).toInt().coerceIn(0, 100)
+                            if (p != lastProgress) {
+                                lastProgress = p
+                                onProgress(p)
+                            }
+                        }
+                    }
+                }
+            }
+            true
+        } catch (e: Exception) {
+            Log.e("PlatformActions", "Manual download exception: ${e.message}", e)
+            false
         }
     }
     

@@ -97,6 +97,8 @@ class MainActivity : ComponentActivity() {
         
         // Инициализируем контекст для PlatformActions (используем Activity context для startActivity)
         AndroidContextHolder.context = this
+        AndroidContextHolder.ddnsUsername = ddnsUsername
+        AndroidContextHolder.ddnsPassword = ddnsPassword
         
         requestRuntimePermissions()
         

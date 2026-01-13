@@ -42,6 +42,11 @@ pub async fn download_app(State(state): State<AppState>) -> Result<impl IntoResp
             if configured_path.ends_with("app-release.apk") {
                 if let Some(c) = find_latest_apk("./android/app/build/outputs/apk/release").await {
                     c
+                } else if let Some(c) = find_latest_apk("./release").await {
+                    // Production-friendly: allow shipping APK next to service binary
+                    c
+                } else if let Some(c) = find_latest_apk("./release/apk").await {
+                    c
                 } else {
                     tracing::warn!("APK не найден: path_or_dir={}", configured_path);
                     return Err(StatusCode::NOT_FOUND);
