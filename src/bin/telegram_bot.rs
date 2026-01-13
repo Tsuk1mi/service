@@ -34,6 +34,8 @@ struct BotConfig {
     sms_code_expiration_minutes: i64,
     sms_code_length: u32,
     return_sms_code_in_response: bool,
+    sms_api_url: Option<String>,
+    sms_api_key: Option<String>,
     server_host: String,
     server_port: u16,
     app_apk_path: Option<String>,
@@ -67,9 +69,11 @@ fn load_bot_config() -> anyhow::Result<BotConfig> {
         .parse()
         .context("SMS_CODE_LENGTH must be a valid number")?;
     let return_sms_code_in_response = std::env::var("RETURN_SMS_CODE_IN_RESPONSE")
-        .unwrap_or_else(|_| "true".to_string())
+        .unwrap_or_else(|_| "false".to_string())
         .parse()
-        .unwrap_or(true);
+        .unwrap_or(false);
+    let sms_api_url = std::env::var("SMS_API_URL").ok();
+    let sms_api_key = std::env::var("SMS_API_KEY").ok();
     let server_host = std::env::var("SERVER_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
     let server_port = std::env::var("SERVER_PORT")
         .unwrap_or_else(|_| "8080".to_string())
@@ -81,6 +85,8 @@ fn load_bot_config() -> anyhow::Result<BotConfig> {
         sms_code_expiration_minutes,
         sms_code_length,
         return_sms_code_in_response,
+        sms_api_url,
+        sms_api_key,
         server_host,
         server_port,
         app_apk_path,
@@ -246,6 +252,8 @@ async fn main() -> anyhow::Result<()> {
         sms_code_expiration_minutes: config.sms_code_expiration_minutes,
         sms_code_length: config.sms_code_length,
         return_sms_code_in_response: config.return_sms_code_in_response,
+        sms_api_url: config.sms_api_url.clone(),
+        sms_api_key: config.sms_api_key.clone(),
         fcm_server_key: None,
         min_client_version: None,
         release_client_version: None,

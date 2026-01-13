@@ -74,9 +74,11 @@ fun AppNavigation(
     var showOptionalUpdateDialog by remember { mutableStateOf(false) }
     var minRequiredVersion by remember { mutableStateOf<String?>(null) }
     var releaseVersion by remember { mutableStateOf<String?>(null) }
+    var availableUpdateVersion by remember { mutableStateOf<String?>(null) }
     var downloadUrl by remember { mutableStateOf<String?>(null) }
     var telegramBotUsername by remember { mutableStateOf<String?>(null) }
     var isForceUpdate by remember { mutableStateOf(false) }
+    var isUpdateAvailable by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val platformActions = getPlatformActions()
     
@@ -93,16 +95,25 @@ fun AppNavigation(
                     val infoToCheck = info ?: serverInfo
                     downloadUrl = infoToCheck.app_download_url
                     telegramBotUsername = infoToCheck.telegram_bot_username
+                    availableUpdateVersion = null
+                    var hasUpdate = false
                     
                     // Проверяем обязательное обновление (min_client_version)
                     val minVersion = infoToCheck.min_client_version
                     if (minVersion != null && com.rimskiy.shared.utils.VersionUtils.compare(appVersion, minVersion) < 0) {
                         minRequiredVersion = minVersion
                         isForceUpdate = true
+                        releaseVersion = minVersion
+                        availableUpdateVersion = minVersion
+                        hasUpdate = true
+                        isUpdateAvailable = true
                         showUpdateDialog = true
                         showOptionalUpdateDialog = false
                         return@fold
                     }
+                    
+                    isForceUpdate = false
+                    minRequiredVersion = minVersion
                     
                     // Проверяем опциональное обновление
                     val releaseVersionValue = infoToCheck.release_client_version
@@ -130,6 +141,8 @@ fun AppNavigation(
                         if (versionComparison < 0) {
                             // Версия на сервере больше текущей - предлагаем обновление
                             releaseVersion = versionToCheck
+                            availableUpdateVersion = versionToCheck
+                            hasUpdate = true
                             println("[AppNavigation] Update available: $versionToCheck, showing dialog")
                             // Показываем опциональное обновление только если нет обязательного
                             if (!showUpdateDialog) {
@@ -137,9 +150,17 @@ fun AppNavigation(
                             }
                         } else {
                             println("[AppNavigation] No update needed: current version is up to date")
+                            releaseVersion = null
                         }
                     } else {
                         println("[AppNavigation] No version to check: both releaseVersion and serverVersion are null")
+                        releaseVersion = null
+                    }
+                    
+                    isUpdateAvailable = hasUpdate
+                    if (!hasUpdate) {
+                        availableUpdateVersion = null
+                        showOptionalUpdateDialog = false
                     }
                 },
                 onFailure = { e ->
@@ -147,6 +168,39 @@ fun AppNavigation(
                 }
             )
         }
+    }
+    
+    fun startUpdateDownload(onComplete: () -> Unit = {}) {
+        val url = downloadUrl
+        if (url.isNullOrBlank()) {
+            downloadError = "Ссылка на обновление недоступна"
+            return
+        }
+        
+        if (isDownloading) return
+        
+        isDownloading = true
+        downloadProgress = 0
+        downloadError = null
+        
+        platformActions.downloadAndInstallApk(
+            url = url,
+            onProgress = { progress ->
+                downloadProgress = progress
+            },
+            onComplete = {
+                isDownloading = false
+                isUpdateAvailable = false
+                availableUpdateVersion = null
+                showUpdateDialog = false
+                showOptionalUpdateDialog = false
+                onComplete()
+            },
+            onError = { error ->
+                isDownloading = false
+                downloadError = error
+            }
+        )
     }
     
     // Проверяем токен при первом запуске
@@ -351,23 +405,9 @@ fun AppNavigation(
                     } else {
                         Button(
                             onClick = { 
-                                isDownloading = true
-                                downloadProgress = 0
-                                downloadError = null
-                                platformActions.downloadAndInstallApk(
-                                    url = url,
-                                    onProgress = { progress ->
-                                        downloadProgress = progress
-                                    },
-                                    onComplete = {
-                                        isDownloading = false
-                                        showUpdateDialog = false
-                                    },
-                                    onError = { error ->
-                                        isDownloading = false
-                                        downloadError = error
-                                    }
-                                )
+                                startUpdateDownload {
+                                    showUpdateDialog = false
+                                }
                             },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.primary
@@ -531,23 +571,9 @@ fun AppNavigation(
                     } else {
                         Button(
                             onClick = { 
-                                isDownloading = true
-                                downloadProgress = 0
-                                downloadError = null
-                                platformActions.downloadAndInstallApk(
-                                    url = url,
-                                    onProgress = { progress ->
-                                        downloadProgress = progress
-                                    },
-                                    onComplete = {
-                                        isDownloading = false
-                                        showOptionalUpdateDialog = false
-                                    },
-                                    onError = { error ->
-                                        isDownloading = false
-                                        downloadError = error
-                                    }
-                                )
+                                startUpdateDownload {
+                                    showOptionalUpdateDialog = false
+                                }
                             },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.primary
@@ -658,6 +684,12 @@ fun AppNavigation(
                                     appVersion = appVersion,
                                     minRequiredVersion = minRequiredVersion,
                                     downloadUrl = downloadUrl,
+                                    availableUpdateVersion = availableUpdateVersion,
+                                    isUpdateAvailable = isUpdateAvailable,
+                                    isDownloading = isDownloading,
+                                    downloadProgress = downloadProgress,
+                                    downloadError = downloadError,
+                                    onInstallUpdate = { startUpdateDownload() },
                                     onNavigateToProfile = {
                                         currentScreen = Screen.Profile
                                         selectedBottomNavItem = BottomNavItem.Profile
@@ -768,6 +800,12 @@ fun AppNavigation(
                                 appVersion = appVersion,
                                 minRequiredVersion = minRequiredVersion,
                                 downloadUrl = downloadUrl,
+                                availableUpdateVersion = availableUpdateVersion,
+                                isUpdateAvailable = isUpdateAvailable,
+                                isDownloading = isDownloading,
+                                downloadProgress = downloadProgress,
+                                downloadError = downloadError,
+                                onInstallUpdate = { startUpdateDownload() },
                                 currentBaseUrl = currentBaseUrl,
                                 onBack = {
                                     currentScreen = Screen.Home
