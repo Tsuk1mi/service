@@ -163,11 +163,15 @@ async fn update_user_plate(
                 .user_plate_repository
                 .find_by_id(plate_id)
                 .await?
-                .ok_or_else(|| crate::error::AppError::NotFound("User plate not found".to_string()))?;
+                .ok_or_else(|| {
+                    crate::error::AppError::NotFound("User plate not found".to_string())
+                })?;
 
             if existing.user_id != user_id {
                 // Не раскрываем существование чужих записей
-                return Err(crate::error::AppError::NotFound("User plate not found".to_string()));
+                return Err(crate::error::AppError::NotFound(
+                    "User plate not found".to_string(),
+                ));
             }
 
             Ok(Json(existing.to_response()))

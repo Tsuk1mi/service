@@ -28,11 +28,10 @@ pub fn app_download_router() -> Router<AppState> {
 )]
 pub async fn download_app(State(state): State<AppState>) -> Result<impl IntoResponse, StatusCode> {
     // Определяем путь к APK файлу/директории
-    let configured_path = state
-        .config
-        .app_apk_path
-        .clone()
-        .unwrap_or_else(|| "./android/app/build/outputs/apk/release/app-release.apk".to_string());
+    let configured_path =
+        state.config.app_apk_path.clone().unwrap_or_else(|| {
+            "./android/app/build/outputs/apk/release/app-release.apk".to_string()
+        });
 
     // APP_APK_PATH может быть как файлом, так и директорией с несколькими APK.
     // В случае директории выбираем "самый свежий" APK (по semver из имени, иначе fallback).
@@ -58,7 +57,11 @@ pub async fn download_app(State(state): State<AppState>) -> Result<impl IntoResp
     let filename = candidate.filename;
 
     let meta = tokio::fs::metadata(&apk_path).await.map_err(|e| {
-        tracing::error!("Ошибка при получении метаданных APK: {:?}, ошибка: {}", apk_path, e);
+        tracing::error!(
+            "Ошибка при получении метаданных APK: {:?}, ошибка: {}",
+            apk_path,
+            e
+        );
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
@@ -69,7 +72,11 @@ pub async fn download_app(State(state): State<AppState>) -> Result<impl IntoResp
 
     // Открываем файл и стримим его (не читаем целиком в память)
     let file = File::open(&apk_path).await.map_err(|e| {
-        tracing::error!("Ошибка при открытии APK файла: {:?}, ошибка: {}", apk_path, e);
+        tracing::error!(
+            "Ошибка при открытии APK файла: {:?}, ошибка: {}",
+            apk_path,
+            e
+        );
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
     let stream = ReaderStream::new(file);
@@ -94,7 +101,8 @@ pub async fn download_app(State(state): State<AppState>) -> Result<impl IntoResp
     headers.insert(header::EXPIRES, HeaderValue::from_static("0"));
     headers.insert(
         header::CONTENT_LENGTH,
-        HeaderValue::from_str(&meta.len().to_string()).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
+        HeaderValue::from_str(&meta.len().to_string())
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
     );
 
     tracing::info!("APK файл успешно отправлен: {}", filename);

@@ -1,11 +1,5 @@
 use crate::api::AppState;
-use axum::{
-    extract::State,
-    http::HeaderMap,
-    response::Json,
-    routing::get,
-    Router,
-};
+use axum::{extract::State, http::HeaderMap, response::Json, routing::get, Router};
 use serde_json::json;
 
 pub fn server_info_router() -> Router<AppState> {

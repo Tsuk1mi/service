@@ -113,8 +113,15 @@ impl AuthService {
         let telegram_bot_username = std::env::var("TELEGRAM_BOT_USERNAME").ok();
         let telegram_deeplink = telegram_bot_username.as_deref().map(|u| {
             // start payload: p<digits> (no '+'), e.g. p79001234567
-            let digits: String = normalized_phone.chars().filter(|c| c.is_ascii_digit()).collect();
-            format!("https://t.me/{}?start=p{}", u.trim().trim_start_matches('@'), digits)
+            let digits: String = normalized_phone
+                .chars()
+                .filter(|c| c.is_ascii_digit())
+                .collect();
+            format!(
+                "https://t.me/{}?start=p{}",
+                u.trim().trim_start_matches('@'),
+                digits
+            )
         });
 
         Ok(AuthStartResponse {
