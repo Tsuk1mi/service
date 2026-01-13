@@ -33,7 +33,8 @@ fun AuthScreen(
     startAuthUseCase: StartAuthUseCase,
     verifyAuthUseCase: VerifyAuthUseCase,
     currentBaseUrl: String,
-    onChangeBaseUrl: (String) -> Unit
+    onChangeBaseUrl: (String) -> Unit,
+    platformActions: com.rimskiy.shared.platform.PlatformActions? = null
 ) {
     var phone by remember { mutableStateOf("") }
     var phoneTextFieldValue by remember { mutableStateOf(TextFieldValue("")) }
@@ -41,7 +42,8 @@ fun AuthScreen(
     var codeSent by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var receivedCode by remember { mutableStateOf<String?>(null) }
+    var telegramUsername by remember { mutableStateOf<String?>(null) }
+    var telegramDeeplink by remember { mutableStateOf<String?>(null) }
     var phoneError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
@@ -204,7 +206,8 @@ fun AuthScreen(
                                 startAuthUseCase(phone).fold(
                                     onSuccess = { response ->
                                         codeSent = true
-                                        receivedCode = if (response.code.isNotBlank()) response.code else null
+                                        telegramUsername = response.telegram_bot_username
+                                        telegramDeeplink = response.telegram_deeplink
                                         isLoading = false
                                     },
                                     onFailure = { e ->
@@ -240,33 +243,43 @@ fun AuthScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Введите код из SMS",
+                            text = "Введите код из Telegram",
                             style = MaterialTheme.typography.titleMedium
                         )
                     }
 
-                    // Показываем код только в dev режиме
-                    receivedCode?.let { code ->
-                        Card(
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
+                    // Подсказки по получению кода через Telegram бота
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "Код отправлен. Проверьте Telegram бота.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        telegramDeeplink?.let { deeplink ->
+                            Button(
+                                onClick = {
+                                    platformActions?.openTelegram(
+                                        telegramUsername ?: deeplink.removePrefix("https://t.me/")
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text(
-                                    text = "Код подтверждения (dev):",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                                Text(
-                                    text = code,
-                                    style = MaterialTheme.typography.headlineMedium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
+                                Icon(Icons.Default.Send, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Открыть бота в Telegram")
+                            }
+                        } ?: telegramUsername?.let { username ->
+                            OutlinedButton(
+                                onClick = { platformActions?.openTelegram(username) },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Send, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Открыть @" + username.trimStart('@'))
                             }
                         }
                     }

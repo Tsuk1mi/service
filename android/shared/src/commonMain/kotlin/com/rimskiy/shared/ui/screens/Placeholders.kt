@@ -833,24 +833,45 @@ private fun PlateItem(
                 }
             }
             
-            // Кнопка сохранения с улучшенным дизайном
-            Button(
-                onClick = {
-                    onUpdateDeparture(departure)
-                },
-                enabled = departure.isNotBlank(),
+            // Кнопки действий для времени
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Сохранить время")
+                Button(
+                    onClick = {
+                        onUpdateDeparture(departure)
+                    },
+                    enabled = departure.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Сохранить время")
+                }
+
+                if (departure.isNotBlank()) {
+                    OutlinedButton(
+                        onClick = {
+                            departure = ""
+                            departureError = null
+                            onUpdateDeparture("") // очистка времени
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text("Очистить время")
+                    }
+                }
             }
             }
         }

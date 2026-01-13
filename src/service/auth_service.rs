@@ -91,6 +91,21 @@ impl AuthService {
             // Не прерываем процесс, если не удалось отправить в Telegram
         }
 
+        // Отправляем SMS через внешний провайдер, если настроен
+        if let Some(sms_url) = &self.config.sms_api_url {
+            if let Err(e) = Self::send_sms_via_provider(
+                sms_url,
+                self.config.sms_api_key.as_deref(),
+                &normalized_phone,
+                &code,
+            )
+            .await
+            {
+                // Не валим запрос, но логируем
+                tracing::warn!("Не удалось отправить SMS через провайдера: {}", e);
+            }
+        }
+
         let expires_in = (self.config.sms_code_expiration_minutes * 60) as u64;
 
         // Возвращаем код в ответе только если return_sms_code_in_response = true (dev режим)
@@ -130,6 +145,39 @@ impl AuthService {
             telegram_bot_username,
             telegram_deeplink,
         })
+    }
+
+    /// Отправка SMS через внешний провайдер (простой POST)
+    async fn send_sms_via_provider(
+        url: &str,
+        api_key: Option<&str>,
+        phone: &str,
+        code: &str,
+    ) -> Result<(), String> {
+        let client = reqwest::Client::new();
+        let mut request = client.post(url).json(&serde_json::json!({
+            "phone": phone,
+            "code": code,
+            "message": format!("Ваш код подтверждения: {}", code),
+        }));
+
+        if let Some(key) = api_key {
+            request = request.header("Authorization", format!("Bearer {}", key));
+        }
+
+        let response = request
+            .send()
+            .await
+            .map_err(|e| format!("SMS API request failed: {}", e))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response.text().await.unwrap_or_default();
+            return Err(format!("SMS API error: {} - {}", status, text));
+        }
+
+        tracing::info!("SMS отправлено через провайдера на {}", phone);
+        Ok(())
     }
 
     /// Проверяет код и создаёт/находит пользователя

@@ -25,7 +25,9 @@ cp .env.example .env
 - `MIGRATIONS_PATH` - Путь к папке с миграциями (по умолчанию: `./migrations`)
 - `SMS_CODE_EXPIRATION_MINUTES` - Время жизни SMS кода в минутах (по умолчанию: `10`)
 - `SMS_CODE_LENGTH` - Длина SMS кода (по умолчанию: `4`)
-- `RETURN_SMS_CODE_IN_RESPONSE` - Возвращать ли SMS код в ответе API (по умолчанию: `true`)
+- `RETURN_SMS_CODE_IN_RESPONSE` - Возвращать ли SMS код в ответе API (по умолчанию: `false`, включайте только для разработки)
+- `SMS_API_URL` - URL провайдера SMS. Если указан — сервер будет отправлять SMS через этот URL.
+- `SMS_API_KEY` - (опционально) ключ авторизации для SMS провайдера.
 - `APP_APK_PATH` - Путь к APK файлу для скачивания (по умолчанию: `./android/app/build/outputs/apk/release/app-release.apk`)
 - `APP_DOWNLOAD_URL` - URL для скачивания приложения (используется в `/server-info`, опционально)
 - `MIN_CLIENT_VERSION` - Минимальная обязательная версия клиента (принудительное обновление, формат: `1.0.0`, опционально)

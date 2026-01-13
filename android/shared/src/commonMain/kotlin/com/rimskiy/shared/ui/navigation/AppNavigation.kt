@@ -599,7 +599,8 @@ fun AppNavigation(
                     currentScreen = Screen.Auth
                     selectedBottomNavItem = BottomNavItem.Profile
                     onChangeBaseUrl(newUrl)
-                }
+                },
+                platformActions = platformActions
             )
         }
         is Screen.BlockNotificationDetails -> {

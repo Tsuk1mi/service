@@ -13,6 +13,8 @@ pub struct Config {
     pub sms_code_expiration_minutes: i64,
     pub sms_code_length: u32,
     pub return_sms_code_in_response: bool,
+    pub sms_api_url: Option<String>,
+    pub sms_api_key: Option<String>,
     pub fcm_server_key: Option<String>,
     pub min_client_version: Option<String>,
     pub release_client_version: Option<String>,
@@ -52,9 +54,11 @@ impl Config {
             .parse()
             .context("SMS_CODE_LENGTH must be a valid number")?;
         let return_sms_code_in_response = env::var("RETURN_SMS_CODE_IN_RESPONSE")
-            .unwrap_or_else(|_| "true".to_string())
+            .unwrap_or_else(|_| "false".to_string())
             .parse()
-            .unwrap_or(true);
+            .unwrap_or(false);
+        let sms_api_url = env::var("SMS_API_URL").ok();
+        let sms_api_key = env::var("SMS_API_KEY").ok();
         let fcm_server_key = env::var("FCM_SERVER_KEY").ok();
         let min_client_version = env::var("MIN_CLIENT_VERSION").ok();
         let release_client_version = env::var("RELEASE_CLIENT_VERSION").ok();
@@ -72,6 +76,8 @@ impl Config {
             sms_code_expiration_minutes,
             sms_code_length,
             return_sms_code_in_response,
+            sms_api_url,
+            sms_api_key,
             fcm_server_key,
             min_client_version,
             release_client_version,
