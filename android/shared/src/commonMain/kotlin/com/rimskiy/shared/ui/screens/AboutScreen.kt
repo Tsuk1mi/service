@@ -11,10 +11,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Link
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -24,24 +24,20 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.Alignment
-import com.rimskiy.shared.ui.components.AppCard
-import com.rimskiy.shared.ui.components.AppCardDefaults
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AboutScreen(
     appVersion: String,
-    latestVersion: String?,
+    minRequiredVersion: String?,
     downloadUrl: String?,
-    isUpdateAvailable: Boolean,
-    isDownloading: Boolean,
-    downloadProgress: Int,
-    downloadError: String?,
-    onInstallUpdate: (String) -> Unit,
+    currentBaseUrl: String,
     onBack: () -> Unit
 ) {
+    val uriHandler = LocalUriHandler.current
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -73,17 +69,25 @@ fun AboutScreen(
             )
 
             InfoCard(
-                title = "Последняя версия",
-                subtitle = "Версия, доступная на сервере",
-                value = latestVersion ?: "Не указана"
+                title = "Минимальная версия сервера",
+                subtitle = "Требуется для корректной работы",
+                value = minRequiredVersion ?: "Не указана"
             )
 
-            if (isUpdateAvailable && !downloadUrl.isNullOrBlank()) {
-                AppCard(
+            InfoCard(
+                title = "Текущий сервер",
+                subtitle = "Базовый URL API",
+                value = currentBaseUrl
+            )
+
+            if (!downloadUrl.isNullOrBlank()) {
+                ElevatedCard(
                     modifier = Modifier.fillMaxWidth(),
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    elevation = 3.dp,
-                    onClick = { onInstallUpdate(downloadUrl) }
+                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    ),
+                    onClick = { uriHandler.openUri(downloadUrl) }
                 ) {
                     Column(
                         modifier = Modifier.padding(20.dp),
@@ -91,40 +95,17 @@ fun AboutScreen(
                     ) {
                         RowIconTitle(
                             icon = Icons.Default.Link,
-                            title = "Установить обновление"
+                            title = "Скачать обновление"
                         )
                         Divider(
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f),
                             thickness = 1.dp
                         )
-                        if (isDownloading) {
-                            androidx.compose.foundation.layout.Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                CircularProgressIndicator()
-                                Text(
-                                    text = "Загрузка: $downloadProgress%",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                        } else {
-                            Text(
-                                text = "Нажмите, чтобы скачать APK с сервера и запустить установку.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-
-                        if (!downloadError.isNullOrBlank()) {
-                            Text(
-                                text = downloadError,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
+                        Text(
+                            text = downloadUrl,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
                     }
                 }
             }
@@ -132,7 +113,7 @@ fun AboutScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Здесь вы можете проверить текущую версию клиента и установить обновление при его наличии.",
+                text = "Здесь вы можете проверить текущую версию клиента, минимальную версию сервера и ссылку для обновления.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -142,7 +123,13 @@ fun AboutScreen(
 
 @Composable
 private fun InfoCard(title: String, subtitle: String, value: String) {
-    AppCard(modifier = Modifier.fillMaxWidth()) {
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
         Column(
             modifier = Modifier.padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)

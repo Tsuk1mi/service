@@ -28,7 +28,6 @@ import com.rimskiy.shared.domain.usecase.UpdateProfileUseCase
 import com.rimskiy.shared.domain.usecase.*
 import com.rimskiy.shared.utils.PhoneUtils
 import com.rimskiy.shared.utils.PlateUtils
-import com.rimskiy.shared.ui.components.AppCard
 import com.rimskiy.shared.ui.components.TimePickerDialog
 import com.rimskiy.shared.data.local.SettingsManager
 import com.rimskiy.shared.platform.createSettings
@@ -191,7 +190,13 @@ fun ProfileScreen(
                 }
 
                 // Карточка с контактной информацией
-                AppCard(modifier = Modifier.fillMaxWidth()) {
+                ElevatedCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                ) {
                     Column(
                         modifier = Modifier.padding(20.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -296,7 +301,13 @@ fun ProfileScreen(
                 }
 
                 // Карточка с автомобилями
-                AppCard(modifier = Modifier.fillMaxWidth()) {
+                ElevatedCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                ) {
                     Column(
                         modifier = Modifier.padding(20.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -341,7 +352,13 @@ fun ProfileScreen(
                 }
 
                 // Карточка с настройками уведомлений
-                AppCard(modifier = Modifier.fillMaxWidth()) {
+                ElevatedCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                ) {
                     Column(
                         modifier = Modifier.padding(20.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -368,7 +385,7 @@ fun ProfileScreen(
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
                             thickness = 1.dp
                         )
-                        
+
                         Text(
                             text = "Выберите способ получения уведомлений о блокировках:",
                             style = MaterialTheme.typography.bodyMedium,

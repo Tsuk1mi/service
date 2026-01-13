@@ -32,18 +32,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.ExperimentalMaterial3Api
-import com.rimskiy.shared.platform.PlatformActions
-import com.rimskiy.shared.ui.components.AppCard
-import androidx.compose.material3.LinearProgressIndicator
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,8 +45,6 @@ fun HomeScreen(
     appVersion: String,
     minRequiredVersion: String?,
     downloadUrl: String?,
-    isUpdateAvailable: Boolean,
-    platformActions: PlatformActions,
     onNavigateToProfile: () -> Unit,
     onNavigateToMyBlocks: () -> Unit,
     onNavigateToBlockedBy: () -> Unit,
@@ -60,10 +52,7 @@ fun HomeScreen(
     onNavigateToAbout: () -> Unit,
 ) {
     val scrollState = rememberScrollState()
-
-    var isDownloading by remember { mutableStateOf(false) }
-    var downloadProgress by remember { mutableStateOf(0) }
-    var downloadError by remember { mutableStateOf<String?>(null) }
+    val uriHandler = LocalUriHandler.current
 
     Column(
         modifier = Modifier
@@ -141,54 +130,18 @@ fun HomeScreen(
                         }
                     }
                 }
-                if (isUpdateAvailable && !downloadUrl.isNullOrBlank()) {
-                    if (isDownloading) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            LinearProgressIndicator(
-                                progress = downloadProgress / 100f,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Text(
-                                text = "Загрузка обновления: $downloadProgress%",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                            downloadError?.let { err ->
-                                Text(
-                                    text = err,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.error
-                                )
-                            }
-                        }
-                    } else {
-                        OutlinedButton(
-                            onClick = {
-                                isDownloading = true
-                                downloadProgress = 0
-                                downloadError = null
-                                platformActions.downloadAndInstallApk(
-                                    url = downloadUrl,
-                                    onProgress = { p -> downloadProgress = p },
-                                    onComplete = { isDownloading = false },
-                                    onError = { e ->
-                                        isDownloading = false
-                                        downloadError = e
-                                    }
-                                )
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Update,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Обновить приложение")
-                        }
+                downloadUrl?.let { url ->
+                    OutlinedButton(
+                        onClick = { uriHandler.openUri(url) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Update,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Обновить приложение")
                     }
                 }
             }
@@ -258,6 +211,7 @@ fun HomeScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeNavCard(
     title: String,
@@ -265,9 +219,13 @@ private fun HomeNavCard(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     onClick: () -> Unit
 ) {
-    AppCard(
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        onClick = onClick
+        onClick = onClick,
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
     ) {
         Row(
             modifier = Modifier
@@ -310,6 +268,7 @@ private fun HomeNavCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeNavTile(
     title: String,
@@ -318,9 +277,13 @@ private fun HomeNavTile(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    AppCard(
+    ElevatedCard(
         modifier = modifier.height(130.dp),
-        onClick = onClick
+        onClick = onClick,
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
     ) {
         Column(
             modifier = Modifier

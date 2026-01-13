@@ -11,7 +11,7 @@ use crate::service::{
 use crate::utils::encryption::Encryption;
 use uuid::Uuid;
 
-/// Сервис для управления блокировками автомобилей
+/// Сервис работы с блокировками (SRP)
 #[derive(Clone)]
 pub struct BlockService {
     encryption: Encryption,
@@ -81,14 +81,14 @@ impl BlockService {
             blocker_plates.iter().map(|p| p.plate.clone()).collect();
         for blocker_plate in &blocker_plate_strings {
             if blocker_plate.eq_ignore_ascii_case(&normalized_plate) {
-                tracing::warn!(
-                    "User {} attempted to block their own plate {}, blocking denied",
-                    blocker_id,
-                    normalized_plate
-                );
-                return Err(AppError::Validation(
-                    "Нельзя перекрыть свой же автомобиль".to_string(),
-                ));
+            tracing::warn!(
+                "User {} attempted to block their own plate {}, blocking denied",
+                blocker_id,
+                normalized_plate
+            );
+            return Err(AppError::Validation(
+                "Нельзя перекрыть свой же автомобиль".to_string(),
+            ));
             }
         }
 
@@ -262,24 +262,24 @@ impl BlockService {
                         }
                     } else {
                         // Отправка через Android Push (по умолчанию)
-                        if let Some(owner_user) = owner_user.as_ref() {
-                            if let Some(push_token) = owner_user.push_token.clone() {
-                                let title = "Ваш авто заблокирован";
+                    if let Some(owner_user) = owner_user.as_ref() {
+                        if let Some(push_token) = owner_user.push_token.clone() {
+                            let title = "Ваш авто заблокирован";
                                 let body =
                                     format!("{} перекрыл {}.", blocker_name, normalized_plate);
-                                let data = serde_json::json!({
-                                    "block_id": block.id.to_string(),
-                                    "blocked_plate": normalized_plate,
-                                    "blocker_name": blocker_name,
-                                });
-                                let push = self.push_service.clone();
-                                tokio::spawn(async move {
+                            let data = serde_json::json!({
+                                "block_id": block.id.to_string(),
+                                "blocked_plate": normalized_plate,
+                                "blocker_name": blocker_name,
+                            });
+                            let push = self.push_service.clone();
+                            tokio::spawn(async move {
                                     if let Err(e) =
                                         push.send_fcm(&push_token, title, &body, data).await
-                                    {
-                                        tracing::warn!("Failed to send FCM push: {}", e);
-                                    }
-                                });
+                                {
+                                    tracing::warn!("Failed to send FCM push: {}", e);
+                                }
+                            });
                             }
                         }
                     }

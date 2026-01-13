@@ -3,7 +3,7 @@ use crate::error::{AppError, AppResult};
 use crate::models::user::User;
 use uuid::Uuid;
 
-/// Трейт для работы с пользователями в базе данных
+/// Трейт для работы с пользователями в БД (DIP - Dependency Inversion Principle)
 #[async_trait::async_trait]
 pub trait UserRepository: Send + Sync {
     async fn find_by_phone_hash(&self, phone_hash: &str) -> AppResult<Option<User>>;
@@ -14,7 +14,6 @@ pub trait UserRepository: Send + Sync {
     async fn get_plate_by_id(&self, id: Uuid) -> AppResult<Option<String>>;
 }
 
-/// Данные для создания нового пользователя
 pub struct CreateUserData {
     pub id: Uuid,
     pub phone_encrypted: String,
@@ -22,7 +21,6 @@ pub struct CreateUserData {
     pub plate: String,
 }
 
-/// Данные для обновления пользователя
 #[derive(Default)]
 pub struct UpdateUserData {
     pub name: Option<String>,
@@ -33,14 +31,15 @@ pub struct UpdateUserData {
     pub show_contacts: Option<bool>,
     pub owner_type: Option<String>,
     pub owner_info: Option<serde_json::Value>,
-    /// Семантика PATCH:
-    /// - None -> не изменять
+    /// PATCH semantics:
+    /// - None -> поле не передано, не изменять
     /// - Some(None) -> очистить (NULL)
-    /// - Some(Some(time)) -> установить время
+    /// - Some(Some(time)) -> установить
     pub departure_time: Option<Option<chrono::NaiveTime>>,
     pub push_token: Option<String>,
 }
 
+/// Реализация репозитория пользователей
 #[derive(Clone)]
 pub struct PostgresUserRepository {
     db: DbPool,
@@ -209,9 +208,15 @@ impl UserRepository for PostgresUserRepository {
             owner_info_value.is_some()
         );
 
-        // departure_time: PATCH семантика (см. UpdateUserData)
-        let departure_time_is_set = update_data.departure_time.is_some();
-        let departure_time_value: Option<chrono::NaiveTime> = update_data.departure_time.flatten();
+        // departure_time PATCH semantics:
+        // - None -> keep current
+        // - Some(None) -> clear
+        // - Some(Some(t)) -> set
+        let departure_time = if update_data.departure_time.is_some() {
+            update_data.departure_time.flatten()
+        } else {
+            current_user.departure_time
+        };
 
         // Используем RETURNING для избежания дополнительного SELECT
         let phone_hash = update_data
@@ -227,13 +232,13 @@ impl UserRepository for PostgresUserRepository {
                 plate = $3, 
                 show_contacts = $4, 
                 phone_encrypted = COALESCE($5, phone_encrypted), 
-                phone_hash = COALESCE($11, phone_hash),
+                phone_hash = COALESCE($10, phone_hash),
                 owner_type = $6, 
                 owner_info = $7,
-                departure_time = CASE WHEN $8 THEN $9 ELSE departure_time END,
-                push_token = COALESCE($10, push_token),
+                departure_time = $8,
+                push_token = COALESCE($9, push_token),
                 updated_at = NOW()
-            WHERE id = $12
+            WHERE id = $11
             RETURNING id, phone_encrypted, phone_hash, telegram, plate, name, show_contacts, 
                       owner_type, owner_info, departure_time, push_token, created_at, updated_at
             "#,
@@ -245,8 +250,7 @@ impl UserRepository for PostgresUserRepository {
         .bind(phone_encrypted.as_ref())
         .bind(&owner_type)
         .bind(owner_info_value.as_ref())
-        .bind(departure_time_is_set)
-        .bind(departure_time_value.as_ref())
+        .bind(departure_time.as_ref())
         .bind(update_data.push_token.as_ref())
         .bind(phone_hash.as_ref())
         .bind(id)

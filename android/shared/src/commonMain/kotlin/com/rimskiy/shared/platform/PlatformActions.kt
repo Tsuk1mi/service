@@ -1,7 +1,6 @@
 package com.rimskiy.shared.platform
 
 expect class PlatformActions {
-    fun openUrl(url: String)
     fun openPhone(phone: String)
     fun openSms(phone: String)
     fun openTelegram(username: String)

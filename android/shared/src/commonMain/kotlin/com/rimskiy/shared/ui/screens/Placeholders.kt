@@ -631,7 +631,7 @@ fun UserPlatesSection(
                         onUpdateDeparture = { newTime ->
                             scope.launch {
                                 isLoading = true
-                                updateUserPlateDepartureUseCase(plate.id, newTime)
+                                updateUserPlateDepartureUseCase(plate.id, if (newTime.isBlank()) null else newTime)
                                     .fold(
                                         onSuccess = { load() },
                                         onFailure = { e -> error = e.message ?: "Ошибка сохранения времени" }
@@ -665,7 +665,7 @@ fun UserPlatesSection(
 @Composable
 private fun PlateItem(
     plate: UserPlateResponse,
-    onUpdateDeparture: (String?) -> Unit,
+    onUpdateDeparture: (String) -> Unit,
     onSetPrimary: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -833,39 +833,24 @@ private fun PlateItem(
                 }
             }
             
-            // Действия: сохранить / убрать
-            Row(
+            // Кнопка сохранения с улучшенным дизайном
+            Button(
+                onClick = {
+                    onUpdateDeparture(departure)
+                },
+                enabled = departure.isNotBlank(),
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
             ) {
-                Button(
-                    onClick = { onUpdateDeparture(departure) },
-                    enabled = departure.isNotBlank(),
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Сохранить")
-                }
-
-                OutlinedButton(
-                    onClick = {
-                        departure = ""
-                        departureError = null
-                        onUpdateDeparture(null)
-                    },
-                    enabled = plate.departure_time != null || departure.isNotBlank(),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Убрать")
-                }
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Сохранить время")
             }
             }
         }

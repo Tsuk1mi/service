@@ -23,8 +23,6 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import com.rimskiy.shared.domain.usecase.StartAuthUseCase
 import com.rimskiy.shared.domain.usecase.VerifyAuthUseCase
-import com.rimskiy.shared.platform.PlatformActions
-import com.rimskiy.shared.ui.components.AppCard
 import com.rimskiy.shared.utils.PhoneUtils
 import kotlinx.coroutines.launch
 
@@ -34,9 +32,7 @@ fun AuthScreen(
     onAuthSuccess: () -> Unit,
     startAuthUseCase: StartAuthUseCase,
     verifyAuthUseCase: VerifyAuthUseCase,
-    platformActions: PlatformActions,
     currentBaseUrl: String,
-    telegramBotUsername: String? = null,
     onChangeBaseUrl: (String) -> Unit
 ) {
     var phone by remember { mutableStateOf("") }
@@ -46,8 +42,6 @@ fun AuthScreen(
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var receivedCode by remember { mutableStateOf<String?>(null) }
-    var telegramDeeplink by remember { mutableStateOf<String?>(null) }
-    var telegramBotFromServer by remember { mutableStateOf<String?>(null) }
     var phoneError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
@@ -106,11 +100,14 @@ fun AuthScreen(
         Spacer(modifier = Modifier.height(40.dp))
 
         // Карточка с формой авторизации
-        AppCard(
+        ElevatedCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp),
-            elevation = 4.dp
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            )
         ) {
             Column(
                 modifier = Modifier.padding(28.dp),
@@ -208,8 +205,6 @@ fun AuthScreen(
                                     onSuccess = { response ->
                                         codeSent = true
                                         receivedCode = if (response.code.isNotBlank()) response.code else null
-                                        telegramDeeplink = response.telegram_deeplink
-                                        telegramBotFromServer = response.telegram_bot_username
                                         isLoading = false
                                     },
                                     onFailure = { e ->
@@ -245,58 +240,9 @@ fun AuthScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Введите код из Telegram",
+                            text = "Введите код из SMS",
                             style = MaterialTheme.typography.titleMedium
                         )
-                    }
-
-                    // Показываем подсказку только если бот вернул pending (нет сессии/чата) и дал deeplink
-                    telegramDeeplink?.let { deeplink ->
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = "Код приходит в Telegram. Откройте бота и отправьте команду привязки.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Button(
-                                onClick = {
-                                    // Если сервер дал deeplink — используем его.
-                                    // Иначе fallback на конструкцию по username (на всякий случай).
-                                    val bot = (telegramBotFromServer ?: telegramBotUsername)
-                                        ?.trim()
-                                        ?.removePrefix("@")
-                                        .orEmpty()
-                                    val phoneToBind =
-                                        phone.trim().ifEmpty { PhoneUtils.normalizePhone(phoneTextFieldValue.text) }
-                                    val command = "/code $phoneToBind"
-                                    val encoded = command
-                                        .replace("+", "%2B")
-                                        .replace("/", "%2F")
-                                        .replace(" ", "%20")
-
-                                    if (deeplink.isNotBlank()) {
-                                        platformActions.openUrl(deeplink)
-                                    } else if (bot.isNotEmpty() && phoneToBind.isNotBlank()) {
-                                        platformActions.openUrl("https://t.me/$bot?text=$encoded")
-                                    } else {
-                                        platformActions.openUrl("tg://")
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(Icons.Default.Send, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Открыть Telegram")
-                            }
-                            Text(
-                                text = "Команда будет введена автоматически — останется нажать «Отправить».",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
                     }
 
                     // Показываем код только в dev режиме

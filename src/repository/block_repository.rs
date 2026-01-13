@@ -3,7 +3,7 @@ use crate::error::AppResult;
 use crate::models::block::Block;
 use uuid::Uuid;
 
-/// Трейт для работы с блокировками автомобилей
+/// Трейт для работы с блокировками в БД (DIP)
 #[async_trait::async_trait]
 pub trait BlockRepository: Send + Sync {
     async fn create(
@@ -21,6 +21,7 @@ pub trait BlockRepository: Send + Sync {
     async fn exists(&self, blocker_plate: &str, blocked_plate: &str) -> AppResult<bool>;
 }
 
+/// Реализация репозитория блокировок
 #[derive(Clone)]
 pub struct PostgresBlockRepository {
     db: DbPool,

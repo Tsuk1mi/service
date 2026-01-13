@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
 use std::env;
 
-/// Конфигурация приложения
 #[derive(Clone)]
 pub struct Config {
     pub database_url: String,
@@ -19,14 +18,13 @@ pub struct Config {
     pub release_client_version: Option<String>,
     pub app_download_url: Option<String>,
     pub app_apk_path: Option<String>,
-    pub telegram_gateway_token: Option<String>,
-    pub telegram_gateway_base_url: Option<String>,
 }
 
 impl Config {
     pub fn from_env() -> Result<Self> {
         let database_url = env::var("DATABASE_URL").context("DATABASE_URL is required")?;
         let jwt_secret = env::var("JWT_SECRET").context("JWT_SECRET is required")?;
+        // Срок жизни JWT: по умолчанию 7 дней (10080 минут)
         let jwt_expiration_minutes = env::var("JWT_EXPIRATION_MINUTES")
             .unwrap_or_else(|_| "10080".to_string())
             .parse()
@@ -62,8 +60,6 @@ impl Config {
         let release_client_version = env::var("RELEASE_CLIENT_VERSION").ok();
         let app_download_url = env::var("APP_DOWNLOAD_URL").ok();
         let app_apk_path = env::var("APP_APK_PATH").ok();
-        let telegram_gateway_token = env::var("TELEGRAM_GATEWAY_TOKEN").ok();
-        let telegram_gateway_base_url = env::var("TELEGRAM_GATEWAY_BASE_URL").ok();
 
         Ok(Config {
             database_url,
@@ -81,8 +77,6 @@ impl Config {
             release_client_version,
             app_download_url,
             app_apk_path,
-            telegram_gateway_token,
-            telegram_gateway_base_url,
         })
     }
 }

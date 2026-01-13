@@ -5,13 +5,11 @@ use crate::api::AppState;
 use crate::auth::jwt::verify_token;
 use crate::error::AppError;
 
-/// Состояние аутентификации, добавляемое в запрос
 #[derive(Clone, Debug)]
 pub struct AuthState {
     pub user_id: Uuid,
 }
 
-/// Middleware для проверки JWT токена и извлечения user_id
 pub async fn auth_middleware(
     axum::extract::State(state): axum::extract::State<AppState>,
     mut request: Request,
@@ -79,7 +77,6 @@ pub async fn auth_middleware(
     Ok(response)
 }
 
-/// Извлекает ID пользователя из запроса (после прохождения auth_middleware)
 pub fn extract_user_id(request: &Request) -> Option<Uuid> {
     request
         .extensions()

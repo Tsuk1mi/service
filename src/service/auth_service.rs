@@ -11,16 +11,7 @@ use serde_json::json;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-#[derive(serde::Deserialize)]
-struct TelegramBotSendCodeResponse {
-    success: bool,
-    #[serde(default)]
-    pending: bool,
-    #[serde(default)]
-    error: Option<String>,
-}
-
-/// Сервис аутентификации и авторизации пользователей
+/// Сервис авторизации (SRP - Single Responsibility Principle)
 #[derive(Clone)]
 pub struct AuthService {
     sms_service: SmsService,
@@ -39,13 +30,8 @@ impl AuthService {
         }
     }
 
-    /// Отправляет код авторизации в Telegram бот.
-    /// `pending=true` означает, что пользователь ещё не открыл чат с ботом.
-    async fn send_code_to_telegram(
-        &self,
-        phone: &str,
-        code: &str,
-    ) -> Result<TelegramBotSendCodeResponse, String> {
+    /// Отправляет код авторизации в Telegram бот
+    async fn send_code_to_telegram(&self, phone: &str, code: &str) -> Result<(), String> {
         // Получаем порт бота (основной порт + 1)
         let bot_port = self
             .config
@@ -62,19 +48,15 @@ impl AuthService {
 
         match self.http_client.post(&bot_url).json(&payload).send().await {
             Ok(response) => {
-                if !response.status().is_success() {
-                    return Err(format!(
+                if response.status().is_success() {
+                    tracing::info!("Код отправлен в Telegram бот для {}", phone);
+                    Ok(())
+                } else {
+                    Err(format!(
                         "Telegram bot returned error: {}",
                         response.status()
-                    ));
+                    ))
                 }
-
-                let body: TelegramBotSendCodeResponse = response
-                    .json()
-                    .await
-                    .map_err(|e| format!("Failed to parse Telegram bot response: {}", e))?;
-
-                Ok(body)
             }
             Err(e) => {
                 // Если бот не запущен или недоступен, это не критично
@@ -94,8 +76,6 @@ impl AuthService {
     pub async fn start_auth(&self, phone: &str) -> AppResult<AuthStartResponse> {
         let normalized_phone = ValidationService::validate_phone(phone)?;
 
-        let expires_in = (self.config.sms_code_expiration_minutes * 60) as u64;
-
         // Генерируем код
         let code = self.sms_service.generate_code(&normalized_phone).await
             .map_err(|e| {
@@ -105,38 +85,42 @@ impl AuthService {
                 ))
             })?;
 
-        let bot_resp = self
-            .send_code_to_telegram(&normalized_phone, &code)
-            .await
-            .map_err(AppError::Internal)?;
-
-        if !bot_resp.success && !bot_resp.pending {
-            return Err(AppError::Internal(bot_resp.error.unwrap_or_else(|| {
-                "Telegram bot отказался отправить код".to_string()
-            })));
+        // Отправляем код в Telegram бот (если настроен)
+        if let Err(e) = self.send_code_to_telegram(&normalized_phone, &code).await {
+            tracing::warn!("Не удалось отправить код в Telegram бот: {}", e);
+            // Не прерываем процесс, если не удалось отправить в Telegram
         }
 
-        let bot_username = std::env::var("TELEGRAM_BOT_USERNAME")
-            .ok()
-            .map(|s| s.trim().trim_start_matches('@').to_string())
-            .filter(|s| !s.is_empty());
+        let expires_in = (self.config.sms_code_expiration_minutes * 60) as u64;
 
-        let telegram_deeplink = if bot_resp.pending {
-            bot_username.as_ref().map(|u| {
-                let digits: String = normalized_phone
-                    .chars()
-                    .filter(|c| c.is_ascii_digit())
-                    .collect();
-                format!("https://t.me/{}?start=p{}", u, digits)
-            })
+        // Возвращаем код в ответе только если return_sms_code_in_response = true (dev режим)
+        // Иначе возвращаем пустую строку (код отправлен по SMS)
+        let response_code = if self.config.return_sms_code_in_response {
+            tracing::info!(
+                "[DEV] Returning SMS code in response for {}: {}",
+                normalized_phone,
+                code
+            );
+            code
         } else {
-            None
+            tracing::info!(
+                "SMS code generated and sent (not returned in response) for {}",
+                normalized_phone
+            );
+            String::new()
         };
 
+        let telegram_bot_username = std::env::var("TELEGRAM_BOT_USERNAME").ok();
+        let telegram_deeplink = telegram_bot_username.as_deref().map(|u| {
+            // start payload: p<digits> (no '+'), e.g. p79001234567
+            let digits: String = normalized_phone.chars().filter(|c| c.is_ascii_digit()).collect();
+            format!("https://t.me/{}?start=p{}", u.trim().trim_start_matches('@'), digits)
+        });
+
         Ok(AuthStartResponse {
+            code: response_code,
             expires_in,
-            code: String::new(),
-            telegram_bot_username: bot_username,
+            telegram_bot_username,
             telegram_deeplink,
         })
     }
@@ -151,7 +135,7 @@ impl AuthService {
     ) -> AppResult<AuthVerifyResponse> {
         let normalized_phone = ValidationService::validate_phone(phone)?;
 
-        // Проверяем код, сохранённый при start_auth
+        // Проверяем код
         if !self.sms_service.verify_code(&normalized_phone, code).await {
             return Err(AppError::Auth("Неверный код подтверждения".to_string()));
         }

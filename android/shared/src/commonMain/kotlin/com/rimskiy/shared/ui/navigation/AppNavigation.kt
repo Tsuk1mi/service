@@ -69,7 +69,6 @@ fun AppNavigation(
 ) {
     // Состояние проверки авторизации
     var isCheckingAuth by remember { mutableStateOf(true) }
-    var isAuthorizedSession by remember { mutableStateOf(false) }
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Auth) }
     var showUpdateDialog by remember { mutableStateOf(false) }
     var showOptionalUpdateDialog by remember { mutableStateOf(false) }
@@ -78,7 +77,6 @@ fun AppNavigation(
     var downloadUrl by remember { mutableStateOf<String?>(null) }
     var telegramBotUsername by remember { mutableStateOf<String?>(null) }
     var isForceUpdate by remember { mutableStateOf(false) }
-    var isUpdateAvailable by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val platformActions = getPlatformActions()
     
@@ -95,22 +93,14 @@ fun AppNavigation(
                     val infoToCheck = info ?: serverInfo
                     downloadUrl = infoToCheck.app_download_url
                     telegramBotUsername = infoToCheck.telegram_bot_username
-                    isForceUpdate = false
-                    showUpdateDialog = false
-                    showOptionalUpdateDialog = false
-
-                    // Показываем UI обновления только в авторизованной сессии
-                    val canShowUpdateUi =
-                        isAuthorizedSession && currentScreen !is Screen.Auth && !isCheckingAuth
                     
                     // Проверяем обязательное обновление (min_client_version)
                     val minVersion = infoToCheck.min_client_version
                     if (minVersion != null && com.rimskiy.shared.utils.VersionUtils.compare(appVersion, minVersion) < 0) {
                         minRequiredVersion = minVersion
                         isForceUpdate = true
-                        isUpdateAvailable = true
-                        releaseVersion = minVersion
-                        if (canShowUpdateUi) showUpdateDialog = true
+                        showUpdateDialog = true
+                        showOptionalUpdateDialog = false
                         return@fold
                     }
                     
@@ -136,24 +126,19 @@ fun AppNavigation(
                     
                     if (versionToCheck != null) {
                         val versionComparison = com.rimskiy.shared.utils.VersionUtils.compare(appVersion, versionToCheck)
-                        // Всегда сохраняем "актуальную" версию с сервера, даже если обновление не требуется
-                        releaseVersion = versionToCheck
-                        isUpdateAvailable = versionComparison < 0
                         println("[AppNavigation] Version comparison result: $versionComparison (negative means update needed)")
                         if (versionComparison < 0) {
                             // Версия на сервере больше текущей - предлагаем обновление
+                            releaseVersion = versionToCheck
                             println("[AppNavigation] Update available: $versionToCheck, showing dialog")
                             // Показываем опциональное обновление только если нет обязательного
-                            if (!showUpdateDialog && canShowUpdateUi) {
+                            if (!showUpdateDialog) {
                                 showOptionalUpdateDialog = true
                             }
                         } else {
                             println("[AppNavigation] No update needed: current version is up to date")
-                            showOptionalUpdateDialog = false
                         }
                     } else {
-                        releaseVersion = null
-                        isUpdateAvailable = false
                         println("[AppNavigation] No version to check: both releaseVersion and serverVersion are null")
                     }
                 },
@@ -168,7 +153,6 @@ fun AppNavigation(
     LaunchedEffect(Unit) {
         println("[AppNavigation] Checking authentication state...")
         isCheckingAuth = true
-        isAuthorizedSession = false
 
         // Версионная проверка
         checkVersionAndUpdate(info = null)
@@ -186,7 +170,6 @@ fun AppNavigation(
         getProfileUseCase().fold(
             onSuccess = { profile ->
                 println("[AppNavigation] Token is valid, showing home screen")
-                isAuthorizedSession = true
                 currentScreen = Screen.Home
             },
             onFailure = { error ->
@@ -195,7 +178,6 @@ fun AppNavigation(
                 scope.launch {
                     authRepository.logout()
                 }
-                isAuthorizedSession = false
                 currentScreen = Screen.Auth
             }
         )
@@ -220,7 +202,7 @@ fun AppNavigation(
     LaunchedEffect(Unit) {
         while (true) {
             kotlinx.coroutines.delay(5 * 60 * 1000) // 5 минут
-            if (isAuthorizedSession && !showUpdateDialog && !isCheckingAuth) {
+            if (!showUpdateDialog && !isCheckingAuth) {
                 checkVersionAndUpdate(info = null)
             }
         }
@@ -256,41 +238,82 @@ fun AppNavigation(
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text(
+                        Text(
                         text = "Для работы приложения требуется версия не ниже $minRequiredVersion.",
-                        style = MaterialTheme.typography.bodyMedium
+                            style = MaterialTheme.typography.bodyMedium
                     )
-
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                    
+                    ElevatedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text(
-                                text = "Текущая версия",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = appVersion,
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.error
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Текущая версия:",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = appVersion,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Требуется версия:",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = minRequiredVersion ?: "",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
-                        Row(
+                    }
+                    
+                    downloadUrl?.let { url ->
+                        ElevatedCard(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                            )
                         ) {
-                            Text(
-                                text = "Требуется версия",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = minRequiredVersion ?: "",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = androidx.compose.material.icons.Icons.Default.Link,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = url,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    maxLines = 2,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                     
@@ -338,8 +361,7 @@ fun AppNavigation(
                                     },
                                     onComplete = {
                                         isDownloading = false
-                                        // Установщик открывается в системном окне — не закрываем диалог автоматически,
-                                        // чтобы пользователь мог повторить попытку, если отменил установку.
+                                        showUpdateDialog = false
                                     },
                                     onError = { error ->
                                         isDownloading = false
@@ -400,37 +422,78 @@ fun AppNavigation(
                         text = "Доступна новая версия приложения: $releaseVersion",
                         style = MaterialTheme.typography.bodyMedium
                     )
-
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                    
+                    ElevatedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text(
-                                text = "Текущая версия",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = appVersion,
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Текущая версия:",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = appVersion,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Новая версия:",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = releaseVersion ?: "",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
-                        Row(
+                    }
+                    
+                    downloadUrl?.let { url ->
+                        ElevatedCard(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                            )
                         ) {
-                            Text(
-                                text = "Новая версия",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = releaseVersion ?: "",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = androidx.compose.material.icons.Icons.Default.Link,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = url,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    maxLines = 2,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                     
@@ -478,7 +541,7 @@ fun AppNavigation(
                                     },
                                     onComplete = {
                                         isDownloading = false
-                                        // Установщик открывается в системном окне — не закрываем диалог автоматически.
+                                        showOptionalUpdateDialog = false
                                     },
                                     onError = { error ->
                                         isDownloading = false
@@ -521,7 +584,6 @@ fun AppNavigation(
     
     when (currentScreen) {
         is Screen.Auth -> {
-            val platformActions = remember { getPlatformActions() }
             AuthScreen(
                 onAuthSuccess = { 
                     currentScreen = Screen.Home
@@ -529,9 +591,7 @@ fun AppNavigation(
                 },
                 startAuthUseCase = startAuthUseCase,
                 verifyAuthUseCase = verifyAuthUseCase,
-                platformActions = platformActions,
                 currentBaseUrl = currentBaseUrl,
-                telegramBotUsername = telegramBotUsername,
                 onChangeBaseUrl = { newUrl ->
                     scope.launch {
                         authRepository.logout()
@@ -592,14 +652,11 @@ fun AppNavigation(
                 Box(modifier = Modifier.padding(paddingValues)) {
                     when (currentScreen) {
                         is Screen.Home -> {
-                            val platformActions = remember { getPlatformActions() }
                             key(Screen.Home, screenRefreshKey) {
                                 HomeScreen(
                                     appVersion = appVersion,
                                     minRequiredVersion = minRequiredVersion,
                                     downloadUrl = downloadUrl,
-                                    isUpdateAvailable = isUpdateAvailable,
-                                    platformActions = platformActions,
                                     onNavigateToProfile = {
                                         currentScreen = Screen.Profile
                                         selectedBottomNavItem = BottomNavItem.Profile
@@ -708,31 +765,9 @@ fun AppNavigation(
                         is Screen.About -> {
                             AboutScreen(
                                 appVersion = appVersion,
+                                minRequiredVersion = minRequiredVersion,
                                 downloadUrl = downloadUrl,
-                                latestVersion = releaseVersion,
-                                isUpdateAvailable = isUpdateAvailable,
-                                isDownloading = isDownloading,
-                                downloadProgress = downloadProgress,
-                                downloadError = downloadError,
-                                onInstallUpdate = { url ->
-                                    if (isDownloading) return@AboutScreen
-                                    isDownloading = true
-                                    downloadProgress = 0
-                                    downloadError = null
-                                    platformActions.downloadAndInstallApk(
-                                        url = url,
-                                        onProgress = { progress ->
-                                            downloadProgress = progress
-                                        },
-                                        onComplete = {
-                                            isDownloading = false
-                                        },
-                                        onError = { error ->
-                                            isDownloading = false
-                                            downloadError = error
-                                        }
-                                    )
-                                },
+                                currentBaseUrl = currentBaseUrl,
                                 onBack = {
                                     currentScreen = Screen.Home
                                     selectedBottomNavItem = BottomNavItem.Home

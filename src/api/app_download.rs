@@ -1,14 +1,14 @@
 use crate::api::AppState;
 use crate::utils::apk::find_latest_apk;
 use axum::{
-    body::Bytes,
     extract::State,
     http::{header, HeaderMap, HeaderValue, StatusCode},
     response::IntoResponse,
     routing::get,
     Router,
 };
-use tokio::fs;
+use tokio::fs::File;
+use tokio_util::io::ReaderStream;
 
 /// Роутер для скачивания приложения
 pub fn app_download_router() -> Router<AppState> {
@@ -27,38 +27,53 @@ pub fn app_download_router() -> Router<AppState> {
     tag = "app"
 )]
 pub async fn download_app(State(state): State<AppState>) -> Result<impl IntoResponse, StatusCode> {
-    // Определяем путь к APK файлу
-    //
-    // APP_APK_PATH может указывать как на файл, так и на директорию с версиями:
-    // app-release-v1.0.56.apk, app-release-v1.0.55.apk, ...
-    let path_or_dir =
-        state.config.app_apk_path.clone().unwrap_or_else(|| {
-            "./android/app/build/outputs/apk/release/app-release.apk".to_string()
-        });
+    // Определяем путь к APK файлу/директории
+    let configured_path = state
+        .config
+        .app_apk_path
+        .clone()
+        .unwrap_or_else(|| "./android/app/build/outputs/apk/release/app-release.apk".to_string());
 
-    let selected = find_latest_apk(&path_or_dir)
-        .await
-        .ok_or(StatusCode::NOT_FOUND)?;
+    // APP_APK_PATH может быть как файлом, так и директорией с несколькими APK.
+    // В случае директории выбираем "самый свежий" APK (по semver из имени, иначе fallback).
+    let candidate = match find_latest_apk(&configured_path).await {
+        Some(c) => c,
+        None => {
+            // Дополнительный fallback: если default файл не найден, попробуем директорию release/
+            if configured_path.ends_with("app-release.apk") {
+                if let Some(c) = find_latest_apk("./android/app/build/outputs/apk/release").await {
+                    c
+                } else {
+                    tracing::warn!("APK не найден: path_or_dir={}", configured_path);
+                    return Err(StatusCode::NOT_FOUND);
+                }
+            } else {
+                tracing::warn!("APK не найден: path_or_dir={}", configured_path);
+                return Err(StatusCode::NOT_FOUND);
+            }
+        }
+    };
 
-    let apk_path = selected.path;
+    let apk_path = candidate.path;
+    let filename = candidate.filename;
 
-    // Проверяем существование файла
-    if !apk_path.exists() {
-        tracing::warn!("APK файл не найден: {:?}", apk_path);
-        return Err(StatusCode::NOT_FOUND);
-    }
-
-    // Читаем файл
-    let file_contents = fs::read(&apk_path).await.map_err(|e| {
-        tracing::error!("Ошибка при чтении APK файла: {:?}, ошибка: {}", apk_path, e);
+    let meta = tokio::fs::metadata(&apk_path).await.map_err(|e| {
+        tracing::error!("Ошибка при получении метаданных APK: {:?}, ошибка: {}", apk_path, e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    // Получаем имя файла для заголовка Content-Disposition
-    let filename = apk_path
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("app-release.apk");
+    if !meta.is_file() {
+        tracing::warn!("APK путь не является файлом: {:?}", apk_path);
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    // Открываем файл и стримим его (не читаем целиком в память)
+    let file = File::open(&apk_path).await.map_err(|e| {
+        tracing::error!("Ошибка при открытии APK файла: {:?}, ошибка: {}", apk_path, e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    let stream = ReaderStream::new(file);
+    let body = axum::body::Body::from_stream(stream);
 
     // Формируем заголовки
     let mut headers = HeaderMap::new();
@@ -71,7 +86,17 @@ pub async fn download_app(State(state): State<AppState>) -> Result<impl IntoResp
         HeaderValue::from_str(&format!("attachment; filename=\"{}\"", filename))
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
     );
+    headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("no-store, no-cache, must-revalidate, max-age=0"),
+    );
+    headers.insert(header::PRAGMA, HeaderValue::from_static("no-cache"));
+    headers.insert(header::EXPIRES, HeaderValue::from_static("0"));
+    headers.insert(
+        header::CONTENT_LENGTH,
+        HeaderValue::from_str(&meta.len().to_string()).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
+    );
 
     tracing::info!("APK файл успешно отправлен: {}", filename);
-    Ok((StatusCode::OK, headers, Bytes::from(file_contents)))
+    Ok((StatusCode::OK, headers, body))
 }

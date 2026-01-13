@@ -1,6 +1,5 @@
 use anyhow::Context;
 use axum::{extract::State, http::StatusCode, response::Json, routing::post, Router};
-use chrono::{DateTime, Utc};
 use rimskiy_service::auth::sms::SmsService;
 use rimskiy_service::config::Config;
 use rimskiy_service::db::pool::create_pool;
@@ -10,11 +9,9 @@ use rimskiy_service::repository::{
 use rimskiy_service::service::validation_service::ValidationService;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
 use std::sync::Arc;
 use teloxide::prelude::*;
 use teloxide::utils::command::BotCommands;
-use tokio::sync::RwLock;
 
 #[derive(BotCommands, Clone, Debug)]
 #[command(
@@ -52,13 +49,6 @@ struct BotState {
     bot: Bot,
     telegram_bot_repository: Arc<PostgresTelegramBotRepository>,
     user_repository: Arc<PostgresUserRepository>,
-    pending_codes: Arc<RwLock<HashMap<String, PendingCode>>>,
-}
-
-#[derive(Clone, Debug)]
-struct PendingCode {
-    code: String,
-    expires_at: DateTime<Utc>,
 }
 
 fn phone_hash(phone: &str) -> String {
@@ -261,8 +251,6 @@ async fn main() -> anyhow::Result<()> {
         release_client_version: None,
         app_download_url: None,
         app_apk_path: config.app_apk_path.clone(),
-        telegram_gateway_token: None,
-        telegram_gateway_base_url: None,
     };
     let sms_service = Arc::new(SmsService::new(sms_config));
 
@@ -297,7 +285,6 @@ async fn main() -> anyhow::Result<()> {
         bot: bot.clone(),
         telegram_bot_repository: telegram_bot_repository.clone(),
         user_repository: user_repository.clone(),
-        pending_codes: Arc::new(RwLock::new(HashMap::new())),
     });
 
     tracing::info!("Telegram бот запущен");
@@ -412,92 +399,6 @@ async fn main() -> anyhow::Result<()> {
                     trimmed,
                     msg.chat.id
                 );
-
-                // Привязка телефона к chat_id через deep-link: https://t.me/<bot>?start=p79001234567
-                // или вручную: /start p79001234567
-                if trimmed.starts_with("/start") {
-                    let payload = trimmed.trim_start_matches("/start").trim();
-                    if payload.is_empty() {
-                        bot.send_message(
-                            msg.chat.id,
-                            "👋 Привет! Чтобы получать коды авторизации, откройте приложение и запросите код. Если код не пришёл — привяжите номер: /start p79001234567",
-                        )
-                        .await?;
-                        return Ok(());
-                    }
-
-                    // Ожидаем формат p<digits>, где digits — номер без '+' (например 79001234567 или 8900...)
-                    let digits = payload.trim().trim_start_matches('p');
-                    if digits.is_empty() || !digits.chars().all(|c| c.is_ascii_digit()) {
-                        bot.send_message(
-                            msg.chat.id,
-                            "❌ Неверный формат. Используйте: /start p79001234567",
-                        )
-                        .await?;
-                        return Ok(());
-                    }
-
-                    let phone_candidate = if let Some(stripped) = digits.strip_prefix('8') {
-                        format!("+7{}", stripped)
-                    } else if digits.starts_with('7') {
-                        format!("+{}", digits)
-                    } else if digits.starts_with('9') {
-                        format!("+7{}", digits)
-                    } else {
-                        format!("+{}", digits)
-                    };
-
-                    let normalized_phone = match ValidationService::validate_phone(&phone_candidate)
-                    {
-                        Ok(p) => p,
-                        Err(_) => {
-                            bot.send_message(
-                                msg.chat.id,
-                                "❌ Не удалось распознать номер. Пример: /start p79001234567",
-                            )
-                            .await?;
-                            return Ok(());
-                        }
-                    };
-
-                    let phone_hash = phone_hash(&normalized_phone);
-                    let telegram_username = msg.from().and_then(|u| u.username.clone());
-
-                    // Сохраняем связь phone_hash <-> chat_id
-                    let _ = state
-                        .telegram_bot_repository
-                        .upsert(
-                            &phone_hash,
-                            msg.chat.id.0,
-                            telegram_username.as_deref(),
-                            None,
-                        )
-                        .await;
-
-                    // Если есть ожидающий код — отправляем сразу
-                    let pending = { state.pending_codes.read().await.get(&phone_hash).cloned() };
-                    if let Some(p) = pending {
-                        if p.expires_at > Utc::now() {
-                            let _ = state.pending_codes.write().await.remove(&phone_hash);
-                            bot.send_message(
-                                msg.chat.id,
-                                format!("🔐 Код авторизации: {}", p.code),
-                            )
-                            .await?;
-                            return Ok(());
-                        }
-                        let _ = state.pending_codes.write().await.remove(&phone_hash);
-                    }
-
-                    bot.send_message(
-                        msg.chat.id,
-                        "✅ Номер привязан. Теперь при входе в приложении код будет приходить сюда автоматически.",
-                    )
-                    .await?;
-
-                    return Ok(());
-                }
-
                 // Если сообщение начинается с /code, обрабатываем его
                 if trimmed.starts_with("/code") {
                     tracing::info!("Обработка /code через text_handler");
@@ -1472,26 +1373,12 @@ async fn send_code_handler(
                     }
                     Ok(_) => {
                         // Временных записей нет - пользователь еще не взаимодействовал с ботом
-                        tracing::info!(
-                            "Пользователь с номером {} еще не взаимодействовал с ботом. Сохраняем код как pending.",
-                            normalized_phone
-                        );
-
-                        let expires_at = Utc::now()
-                            + chrono::Duration::minutes(state.config.sms_code_expiration_minutes);
-                        state.pending_codes.write().await.insert(
-                            phone_hash.clone(),
-                            PendingCode {
-                                code: payload.code.clone(),
-                                expires_at,
-                            },
-                        );
-
+                        tracing::info!("Пользователь с номером {} еще не взаимодействовал с ботом. Код будет отправлен только по SMS.", normalized_phone);
                         Ok(Json(serde_json::json!({
                             "success": false,
-                            "error": "Пользователь еще не открыл бота. Откройте бота и нажмите Start — код придет сюда автоматически.",
+                            "error": "Пользователь еще не взаимодействовал с ботом. Код отправлен по SMS.",
                             "sent_count": 0,
-                            "pending": true
+                            "sms_sent": true
                         })))
                     }
                     Err(e) => {

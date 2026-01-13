@@ -152,27 +152,59 @@ async fn update_user_plate(
 ) -> AppResult<Json<UserPlateResponse>> {
     let user_id = auth_state.user_id;
 
-    // Обновляем только departure_time, поэтому если поле не передано — считаем это очисткой (NULL).
-    // Это повышает совместимость с клиентами, которые могут не отправлять `null` поле в JSON.
-    let time = match payload.departure_time {
-        None => None,
-        Some(None) => None,
-        Some(Some(ref t)) if t.trim().is_empty() => None,
-        Some(Some(ref t)) => Some(NaiveTime::parse_from_str(t, "%H:%M").map_err(|_| {
-            crate::error::AppError::Validation(
-                "Некорректное время выезда, используйте HH:MM".to_string(),
-            )
-        })?),
-    };
+    // PATCH semantics:
+    // - None -> поле не передано, не изменять
+    // - Some(None) -> очистить
+    // - Some(Some("HH:MM")) -> установить
+    match payload.departure_time {
+        None => {
+            // Ничего не меняем — возвращаем текущую запись (и проверяем владение)
+            let existing = state
+                .user_plate_repository
+                .find_by_id(plate_id)
+                .await?
+                .ok_or_else(|| crate::error::AppError::NotFound("User plate not found".to_string()))?;
 
-    let updated = state
-        .user_plate_repository
-        .update_departure_time(plate_id, user_id, time)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to update user plate: {:?}", e);
-            e
-        })?;
+            if existing.user_id != user_id {
+                // Не раскрываем существование чужих записей
+                return Err(crate::error::AppError::NotFound("User plate not found".to_string()));
+            }
 
-    Ok(Json(updated.to_response()))
+            Ok(Json(existing.to_response()))
+        }
+        Some(None) => {
+            let updated = state
+                .user_plate_repository
+                .update_departure_time(plate_id, user_id, None)
+                .await
+                .map_err(|e| {
+                    tracing::error!("Failed to clear departure_time: {:?}", e);
+                    e
+                })?;
+            Ok(Json(updated.to_response()))
+        }
+        Some(Some(t)) => {
+            let t = t.trim();
+            let time = if t.is_empty() {
+                None
+            } else {
+                Some(NaiveTime::parse_from_str(t, "%H:%M").map_err(|_| {
+                    crate::error::AppError::Validation(
+                        "Некорректное время выезда, используйте HH:MM".to_string(),
+                    )
+                })?)
+            };
+
+            let updated = state
+                .user_plate_repository
+                .update_departure_time(plate_id, user_id, time)
+                .await
+                .map_err(|e| {
+                    tracing::error!("Failed to update user plate: {:?}", e);
+                    e
+                })?;
+
+            Ok(Json(updated.to_response()))
+        }
+    }
 }

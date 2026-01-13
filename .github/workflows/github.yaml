@@ -545,7 +545,7 @@ jobs:
             mv app-release.apk "app-release-v${VERSION_NAME}.apk"
             echo "Renamed APK to app-release-v${VERSION_NAME}.apk"
           fi
-      
+
       - name: Upload release APK
         if: success()
         uses: actions/upload-artifact@v4

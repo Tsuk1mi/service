@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use sqlx::FromRow;
 use uuid::Uuid;
 
-/// Модель пользователя Telegram бота
+/// Модель для регистрации пользователя в Telegram боте
 #[derive(Debug, Clone, FromRow)]
 pub struct TelegramBotUser {
     pub id: Uuid,
@@ -16,7 +16,7 @@ pub struct TelegramBotUser {
     pub updated_at: DateTime<Utc>,
 }
 
-/// Трейт для работы с регистрациями пользователей в Telegram боте
+/// Трейт для работы с регистрациями Telegram бота
 #[async_trait::async_trait]
 pub trait TelegramBotRepository: Send + Sync {
     /// Находит регистрацию по phone_hash
@@ -71,6 +71,7 @@ pub trait TelegramBotRepository: Send + Sync {
     ) -> AppResult<Option<TelegramBotUser>>;
 }
 
+/// Реализация репозитория для PostgreSQL
 #[derive(Clone)]
 pub struct PostgresTelegramBotRepository {
     db: DbPool,
