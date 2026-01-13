@@ -1,4 +1,5 @@
 use crate::api::AppState;
+use crate::utils::apk::find_latest_apk;
 use axum::{extract::State, http::HeaderMap, response::Json, routing::get, Router};
 use serde_json::json;
 
@@ -47,6 +48,47 @@ fn append_cache_bust_version(url: String, version: Option<&str>) -> String {
     format!("{url}{joiner}v={version}")
 }
 
+async fn detect_release_client_version(state: &AppState, server_url: &str) -> Option<String> {
+    // 1) Явная настройка имеет приоритет
+    if let Some(v) = state
+        .config
+        .release_client_version
+        .as_deref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+    {
+        return Some(v.to_string());
+    }
+
+    // 2) Пытаемся определить версию из имени APK (app-release-vX.Y.Z.apk)
+    let configured_path = state
+        .config
+        .app_apk_path
+        .clone()
+        .unwrap_or_else(|| "./android/app/build/outputs/apk/release/app-release.apk".to_string());
+
+    // Повторяем логику fallback, как в download endpoint
+    let candidate = find_latest_apk(&configured_path).await.or_else(|| async {
+        if configured_path.ends_with("app-release.apk") {
+            find_latest_apk("./android/app/build/outputs/apk/release").await
+                .or_else(|| find_latest_apk("./release").await)
+                .or_else(|| find_latest_apk("./release/apk").await)
+        } else {
+            None
+        }
+    }.await);
+
+    if let Some(c) = candidate {
+        if let Some((maj, min, pat)) = c.version {
+            return Some(format!("{maj}.{min}.{pat}"));
+        }
+    }
+
+    // 3) Фолбэк: если ничего не нашли, оставляем как раньше (версия сервера),
+    // но это может не совпадать с версией Android-клиента.
+    Some(env!("CARGO_PKG_VERSION").to_string())
+}
+
 async fn get_server_info(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -66,13 +108,11 @@ async fn get_server_info(
     // Получаем username бота из токена (если есть)
     let telegram_bot_username = std::env::var("TELEGRAM_BOT_USERNAME").ok();
 
-    // Автоматически определяем версию приложения на основе версии сервера
-    // Если release_client_version не указан, используем server_version
-    let auto_release_version = state
-        .config
-        .release_client_version
-        .clone()
-        .or_else(|| Some(env!("CARGO_PKG_VERSION").to_string()));
+    // Определяем версию "клиентского релиза" (для кнопки обновления):
+    // - приоритет RELEASE_CLIENT_VERSION из env
+    // - иначе пробуем распарсить из имени APK (app-release-vX.Y.Z.apk)
+    // - иначе fallback на версию сервера (не идеально, но лучше чем null)
+    let auto_release_version = detect_release_client_version(&state, &server_url).await;
 
     // Add a stable cache-busting query parameter so phones/CDNs don't serve stale APKs
     // when a new release is available at the same endpoint.
