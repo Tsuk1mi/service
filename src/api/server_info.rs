@@ -48,7 +48,7 @@ fn append_cache_bust_version(url: String, version: Option<&str>) -> String {
     format!("{url}{joiner}v={version}")
 }
 
-async fn detect_release_client_version(state: &AppState, server_url: &str) -> Option<String> {
+async fn detect_release_client_version(state: &AppState) -> Option<String> {
     // 1) Явная настройка имеет приоритет
     if let Some(v) = state
         .config
@@ -67,19 +67,16 @@ async fn detect_release_client_version(state: &AppState, server_url: &str) -> Op
         });
 
     // Повторяем логику fallback, как в download endpoint
-    let candidate = find_latest_apk(&configured_path).await.or_else(|| {
-        async {
-            if configured_path.ends_with("app-release.apk") {
-                find_latest_apk("./android/app/build/outputs/apk/release")
-                    .await
-                    .or_else(|| find_latest_apk("./release").await)
-                    .or_else(|| find_latest_apk("./release/apk").await)
-            } else {
-                None
-            }
+    let mut candidate = find_latest_apk(&configured_path).await;
+    if candidate.is_none() && configured_path.ends_with("app-release.apk") {
+        candidate = find_latest_apk("./android/app/build/outputs/apk/release").await;
+        if candidate.is_none() {
+            candidate = find_latest_apk("./release").await;
         }
-        .await
-    });
+        if candidate.is_none() {
+            candidate = find_latest_apk("./release/apk").await;
+        }
+    }
 
     if let Some(c) = candidate {
         if let Some((maj, min, pat)) = c.version {
@@ -115,7 +112,7 @@ async fn get_server_info(
     // - приоритет RELEASE_CLIENT_VERSION из env
     // - иначе пробуем распарсить из имени APK (app-release-vX.Y.Z.apk)
     // - иначе fallback на версию сервера (не идеально, но лучше чем null)
-    let auto_release_version = detect_release_client_version(&state, &server_url).await;
+    let auto_release_version = detect_release_client_version(&state).await;
 
     // Add a stable cache-busting query parameter so phones/CDNs don't serve stale APKs
     // when a new release is available at the same endpoint.
