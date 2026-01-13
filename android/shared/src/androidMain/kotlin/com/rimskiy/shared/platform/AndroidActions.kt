@@ -2,10 +2,8 @@ package com.rimskiy.shared.platform
 
 import android.app.Activity
 import android.app.DownloadManager
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -16,6 +14,7 @@ import androidx.core.content.FileProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 actual class PlatformActions(private val context: Context) {
@@ -185,6 +184,7 @@ actual class PlatformActions(private val context: Context) {
             val request = DownloadManager.Request(Uri.parse(url)).apply {
                 setTitle("Обновление приложения")
                 setDescription("Загрузка новой версии приложения...")
+                setMimeType("application/vnd.android.package-archive")
                 // Для Android 10+ используем getExternalFilesDir, для старых версий - setDestinationUri
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, "updates/app-update.apk")
@@ -198,80 +198,55 @@ actual class PlatformActions(private val context: Context) {
             }
             
             val downloadId = downloadManager.enqueue(request)
-            
-            // Отслеживаем прогресс загрузки
-            val receiver = object : BroadcastReceiver() {
-                override fun onReceive(context: Context?, intent: Intent?) {
-                    val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
-                    if (id == downloadId) {
+
+            // ВАЖНО: не используем BroadcastReceiver, т.к. на Android 13+ динамическая регистрация
+            // требует флага exported/notExported и часто ломает обновление. Вместо этого — polling.
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    while (true) {
+                        kotlinx.coroutines.delay(500)
                         val query = DownloadManager.Query().setFilterById(downloadId)
                         val cursor = downloadManager.query(query)
-                        
-                        if (cursor.moveToFirst()) {
-                            val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-                            when (status) {
-                                DownloadManager.STATUS_SUCCESSFUL -> {
-                                    context?.unregisterReceiver(this)
-                                    // Получаем путь к загруженному файлу
-                                    val downloadedFile = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                        val externalDir = context?.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-                                        if (externalDir != null) {
-                                            File(externalDir, "updates/app-update.apk")
-                                        } else {
-                                            apkFile
-                                        }
-                                    } else {
-                                        apkFile
-                                    }
-                                    // Устанавливаем APK
-                                    installApk(activity, downloadedFile, onComplete, onError)
+                        if (!cursor.moveToFirst()) {
+                            cursor.close()
+                            continue
+                        }
+
+                        val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                        when (status) {
+                            DownloadManager.STATUS_RUNNING -> {
+                                val bytesDownloaded = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
+                                val totalBytes = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
+                                if (totalBytes > 0) {
+                                    val progress = ((bytesDownloaded * 100) / totalBytes).toInt().coerceIn(0, 100)
+                                    withContext(Dispatchers.Main) { onProgress(progress) }
                                 }
-                                DownloadManager.STATUS_FAILED -> {
-                                    context?.unregisterReceiver(this)
-                                    val reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))
-                                    onError("Ошибка загрузки: $reason")
+                            }
+                            DownloadManager.STATUS_SUCCESSFUL -> {
+                                val localUriStr = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI))
+                                cursor.close()
+                                val uri = localUriStr?.let { Uri.parse(it) }
+
+                                withContext(Dispatchers.Main) {
+                                    installDownloadedApk(activity, uri, apkFile, onComplete, onError)
                                 }
-                                DownloadManager.STATUS_RUNNING -> {
-                                    val bytesDownloaded = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
-                                    val totalBytes = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
-                                    if (totalBytes > 0) {
-                                        val progress = (bytesDownloaded * 100 / totalBytes).toInt()
-                                        onProgress(progress)
-                                    }
-                                }
+                                break
+                            }
+                            DownloadManager.STATUS_FAILED -> {
+                                val reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))
+                                cursor.close()
+                                withContext(Dispatchers.Main) { onError("Ошибка загрузки: $reason") }
+                                break
+                            }
+                            else -> {
+                                // PENDING/PAUSED — просто ждём
                             }
                         }
                         cursor.close()
                     }
-                }
-            }
-            
-            context.registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
-            
-            // Также проверяем прогресс периодически
-            CoroutineScope(Dispatchers.IO).launch {
-                while (true) {
-                    kotlinx.coroutines.delay(500)
-                    val query = DownloadManager.Query().setFilterById(downloadId)
-                    val cursor = downloadManager.query(query)
-                    
-                    if (cursor.moveToFirst()) {
-                        val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-                        if (status == DownloadManager.STATUS_RUNNING) {
-                            val bytesDownloaded = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
-                            val totalBytes = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
-                            if (totalBytes > 0) {
-                                val progress = (bytesDownloaded * 100 / totalBytes).toInt()
-                                CoroutineScope(Dispatchers.Main).launch {
-                                    onProgress(progress)
-                                }
-                            }
-                        } else if (status == DownloadManager.STATUS_SUCCESSFUL || status == DownloadManager.STATUS_FAILED) {
-                            cursor.close()
-                            break
-                        }
-                    }
-                    cursor.close()
+                } catch (e: Exception) {
+                    Log.e("PlatformActions", "Download polling failed: ${e.message}", e)
+                    withContext(Dispatchers.Main) { onError("Ошибка загрузки: ${e.message}") }
                 }
             }
             
@@ -281,24 +256,40 @@ actual class PlatformActions(private val context: Context) {
         }
     }
     
-    private fun installApk(activity: Activity, apkFile: File, onComplete: () -> Unit, onError: (String) -> Unit) {
+    private fun installDownloadedApk(
+        activity: Activity,
+        downloadedLocalUri: Uri?,
+        fallbackApkFile: File,
+        onComplete: () -> Unit,
+        onError: (String) -> Unit
+    ) {
         try {
+            val installUri: Uri = when {
+                downloadedLocalUri == null -> {
+                    // Fallback: используем ожидаемый путь назначения
+                    FileProvider.getUriForFile(activity, "${activity.packageName}.fileprovider", fallbackApkFile)
+                }
+                downloadedLocalUri.scheme.equals("content", ignoreCase = true) -> {
+                    // DownloadManager может вернуть content:// — используем как есть
+                    downloadedLocalUri
+                }
+                downloadedLocalUri.scheme.equals("file", ignoreCase = true) -> {
+                    // file:// нельзя шарить на Android N+ — конвертируем в FileProvider
+                    val file = File(downloadedLocalUri.path ?: fallbackApkFile.absolutePath)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        FileProvider.getUriForFile(activity, "${activity.packageName}.fileprovider", file)
+                    } else {
+                        Uri.fromFile(file)
+                    }
+                }
+                else -> {
+                    downloadedLocalUri
+                }
+            }
+
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
-                
-                val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    // Используем FileProvider для Android 7.0+
-                    FileProvider.getUriForFile(
-                        activity,
-                        "${activity.packageName}.fileprovider",
-                        apkFile
-                    )
-                } else {
-                    // Для старых версий Android
-                    Uri.fromFile(apkFile)
-                }
-                
-                setDataAndType(uri, "application/vnd.android.package-archive")
+                setDataAndType(installUri, "application/vnd.android.package-archive")
             }
             
             activity.startActivity(intent)
