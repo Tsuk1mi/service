@@ -3,6 +3,7 @@ package com.rimskiy.shared.data.api
 import io.ktor.client.call.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import kotlinx.coroutines.CancellationException
 
 /**
  * Обработчик ошибок API
@@ -73,6 +74,14 @@ object ErrorHandler {
      * Обрабатывает исключение и возвращает понятное сообщение
      */
     fun getErrorMessage(exception: Throwable): String {
+        // Нормальный кейс для Compose/Ktor: запрос отменили, потому что экран ушёл из композиции.
+        // Это не ошибка для пользователя и не должно спамить логи/тосты.
+        if (exception is CancellationException ||
+            exception::class.simpleName?.contains("CancellationException", ignoreCase = true) == true
+        ) {
+            return ""
+        }
+
         val exceptionClass = exception::class.simpleName ?: ""
         val message = exception.message ?: ""
         

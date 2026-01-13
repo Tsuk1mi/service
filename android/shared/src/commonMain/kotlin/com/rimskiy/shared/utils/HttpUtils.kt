@@ -34,6 +34,12 @@ fun createHttpClient(): HttpClient = HttpClient(Android) {
         level = LogLevel.INFO
         logger = object : Logger {
             override fun log(message: String) {
+                // Не шумим по CancellationException — это нормальная отмена при уходе экрана из композиции.
+                if (message.contains("CancellationException", ignoreCase = true) ||
+                    message.contains("left the composition", ignoreCase = true)
+                ) {
+                    return
+                }
                 println(message)
             }
         }

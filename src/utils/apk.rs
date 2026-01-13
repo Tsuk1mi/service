@@ -1,12 +1,46 @@
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 use tokio::fs;
+use tokio::sync::RwLock;
 
 #[derive(Debug, Clone)]
 pub struct ApkCandidate {
     pub path: PathBuf,
     pub filename: String,
     pub version: Option<(u64, u64, u64)>,
+}
+
+/// Небольшой in-memory кэш результата поиска APK.
+/// Нужен, чтобы не сканировать файловую систему на каждом `/server-info` / `/api/app/download`.
+#[derive(Debug)]
+pub struct ApkCache {
+    last_scan: Option<Instant>,
+    cached: Option<ApkCandidate>,
+}
+
+impl ApkCache {
+    pub fn new() -> Self {
+        Self {
+            last_scan: None,
+            cached: None,
+        }
+    }
+
+    pub fn set(&mut self, candidate: Option<ApkCandidate>) {
+        self.last_scan = Some(Instant::now());
+        self.cached = candidate;
+    }
+
+    pub fn get_if_fresh(&self, ttl: Duration) -> Option<Option<ApkCandidate>> {
+        let Some(ts) = self.last_scan else {
+            return None;
+        };
+        if ts.elapsed() <= ttl {
+            return Some(self.cached.clone());
+        }
+        None
+    }
 }
 
 fn parse_version_from_filename(filename: &str) -> Option<(u64, u64, u64)> {
@@ -89,4 +123,49 @@ pub async fn find_latest_apk(path_or_dir: &str) -> Option<ApkCandidate> {
     }
 
     choose_best(candidates)
+}
+
+/// Расширенный поиск APK с production-friendly fallback путями (как в endpoints).
+pub async fn find_latest_apk_with_fallback(configured_path: &str) -> Option<ApkCandidate> {
+    if let Some(c) = find_latest_apk(configured_path).await {
+        return Some(c);
+    }
+
+    // Дополнительный fallback: если default файл не найден, попробуем директории release/
+    if configured_path.ends_with("app-release.apk") {
+        if let Some(c) = find_latest_apk("./android/app/build/outputs/apk/release").await {
+            return Some(c);
+        }
+        if let Some(c) = find_latest_apk("./release").await {
+            return Some(c);
+        }
+        if let Some(c) = find_latest_apk("./release/apk").await {
+            return Some(c);
+        }
+    }
+
+    None
+}
+
+/// Получить APK из кэша (если свежий), иначе пересканировать и обновить кэш.
+pub async fn find_latest_apk_cached(
+    cache: &RwLock<ApkCache>,
+    configured_path: &str,
+    ttl: Duration,
+) -> Option<ApkCandidate> {
+    // Быстрый путь: свежий кэш
+    if let Some(v) = cache.read().await.get_if_fresh(ttl) {
+        return v;
+    }
+
+    // Медленный путь: пересканируем.
+    // Важно: не держим lock на время FS операций.
+    let candidate = find_latest_apk_with_fallback(configured_path).await;
+
+    {
+        let mut w = cache.write().await;
+        w.set(candidate.clone());
+    }
+
+    candidate
 }

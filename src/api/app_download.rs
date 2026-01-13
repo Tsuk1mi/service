@@ -1,5 +1,5 @@
 use crate::api::AppState;
-use crate::utils::apk::find_latest_apk;
+use crate::utils::apk::find_latest_apk_cached;
 use axum::{
     extract::State,
     http::{header, HeaderMap, HeaderValue, StatusCode},
@@ -7,6 +7,7 @@ use axum::{
     routing::get,
     Router,
 };
+use std::time::Duration;
 use tokio::fs::File;
 use tokio_util::io::ReaderStream;
 
@@ -35,26 +36,13 @@ pub async fn download_app(State(state): State<AppState>) -> Result<impl IntoResp
 
     // APP_APK_PATH может быть как файлом, так и директорией с несколькими APK.
     // В случае директории выбираем "самый свежий" APK (по semver из имени, иначе fallback).
-    let candidate = match find_latest_apk(&configured_path).await {
+    // ВАЖНО: используем кэш, чтобы не долбить FS при массовых запросах на скачивание/проверку.
+    let ttl = Duration::from_secs(60);
+    let candidate = match find_latest_apk_cached(&state.apk_cache, &configured_path, ttl).await {
         Some(c) => c,
         None => {
-            // Дополнительный fallback: если default файл не найден, попробуем директорию release/
-            if configured_path.ends_with("app-release.apk") {
-                if let Some(c) = find_latest_apk("./android/app/build/outputs/apk/release").await {
-                    c
-                } else if let Some(c) = find_latest_apk("./release").await {
-                    // Production-friendly: allow shipping APK next to service binary
-                    c
-                } else if let Some(c) = find_latest_apk("./release/apk").await {
-                    c
-                } else {
-                    tracing::warn!("APK не найден: path_or_dir={}", configured_path);
-                    return Err(StatusCode::NOT_FOUND);
-                }
-            } else {
-                tracing::warn!("APK не найден: path_or_dir={}", configured_path);
-                return Err(StatusCode::NOT_FOUND);
-            }
+            tracing::warn!("APK не найден: path_or_dir={}", configured_path);
+            return Err(StatusCode::NOT_FOUND);
         }
     };
 

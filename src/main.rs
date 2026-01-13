@@ -18,6 +18,9 @@ use rimskiy_service::service::{
     AuthService, BlockService, PushService, TelegramService, TelephonyService, UserService,
 };
 use rimskiy_service::utils::encryption::Encryption;
+use rimskiy_service::utils::apk::{find_latest_apk_with_fallback, ApkCache};
+use std::sync::Arc;
+use tokio::sync::RwLock;
 use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
 use utoipa::OpenApi;
@@ -90,7 +93,19 @@ async fn main() -> Result<()> {
         block_repository,
         user_plate_repository,
         notification_repository,
+        apk_cache: Arc::new(RwLock::new(ApkCache::new())),
     };
+
+    // Прогреваем кэш APK на старте, чтобы первый `/server-info` не упирался в медленную FS.
+    // Если APK нет — кэшируется None, чтобы тоже не сканировать повторно мгновенно.
+    let configured_apk_path = config.app_apk_path.clone().unwrap_or_else(|| {
+        "./android/app/build/outputs/apk/release/app-release.apk".to_string()
+    });
+    let initial_candidate = find_latest_apk_with_fallback(&configured_apk_path).await;
+    {
+        let mut w = app_state.apk_cache.write().await;
+        w.set(initial_candidate);
+    }
 
     // Создаём OpenAPI документацию
     let openapi = ApiDoc::openapi();

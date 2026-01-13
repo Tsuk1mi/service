@@ -26,6 +26,9 @@ use crate::service::{
     AuthService, BlockService, PushService, TelegramService, TelephonyService, UserService,
 };
 use crate::utils::encryption::Encryption;
+use crate::utils::apk::ApkCache;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -42,4 +45,6 @@ pub struct AppState {
     pub block_repository: PostgresBlockRepository,
     pub user_plate_repository: PostgresUserPlateRepository,
     pub notification_repository: PostgresNotificationRepository,
+    /// Кэш поиска APK (для `/server-info` и `/api/app/download`)
+    pub apk_cache: Arc<RwLock<ApkCache>>,
 }

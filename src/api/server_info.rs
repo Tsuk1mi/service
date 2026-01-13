@@ -1,7 +1,8 @@
 use crate::api::AppState;
-use crate::utils::apk::find_latest_apk;
+use crate::utils::apk::find_latest_apk_cached;
 use axum::{extract::State, http::HeaderMap, response::Json, routing::get, Router};
 use serde_json::json;
+use std::time::Duration;
 
 pub fn server_info_router() -> Router<AppState> {
     Router::new().route("/server-info", get(get_server_info))
@@ -61,24 +62,14 @@ async fn detect_release_client_version(state: &AppState) -> Option<String> {
     }
 
     // 2) Пытаемся определить версию из имени APK (app-release-vX.Y.Z.apk)
-    let configured_path =
-        state.config.app_apk_path.clone().unwrap_or_else(|| {
-            "./android/app/build/outputs/apk/release/app-release.apk".to_string()
-        });
+    // ВАЖНО: используем кэш, чтобы не сканировать FS на каждом запросе `/server-info`.
+    let configured_path = state.config.app_apk_path.clone().unwrap_or_else(|| {
+        "./android/app/build/outputs/apk/release/app-release.apk".to_string()
+    });
 
-    // Повторяем логику fallback, как в download endpoint
-    let mut candidate = find_latest_apk(&configured_path).await;
-    if candidate.is_none() && configured_path.ends_with("app-release.apk") {
-        candidate = find_latest_apk("./android/app/build/outputs/apk/release").await;
-        if candidate.is_none() {
-            candidate = find_latest_apk("./release").await;
-        }
-        if candidate.is_none() {
-            candidate = find_latest_apk("./release/apk").await;
-        }
-    }
-
-    if let Some(c) = candidate {
+    // TTL небольшой: чтобы подхватывать свежие APK без рестарта, но не грузить FS.
+    let ttl = Duration::from_secs(60);
+    if let Some(c) = find_latest_apk_cached(&state.apk_cache, &configured_path, ttl).await {
         if let Some((maj, min, pat)) = c.version {
             return Some(format!("{maj}.{min}.{pat}"));
         }
