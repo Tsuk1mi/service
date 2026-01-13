@@ -63,9 +63,10 @@ async fn detect_release_client_version(state: &AppState) -> Option<String> {
 
     // 2) Пытаемся определить версию из имени APK (app-release-vX.Y.Z.apk)
     // ВАЖНО: используем кэш, чтобы не сканировать FS на каждом запросе `/server-info`.
-    let configured_path = state.config.app_apk_path.clone().unwrap_or_else(|| {
-        "./android/app/build/outputs/apk/release/app-release.apk".to_string()
-    });
+    let configured_path =
+        state.config.app_apk_path.clone().unwrap_or_else(|| {
+            "./android/app/build/outputs/apk/release/app-release.apk".to_string()
+        });
 
     // TTL небольшой: чтобы подхватывать свежие APK без рестарта, но не грузить FS.
     let ttl = Duration::from_secs(60);

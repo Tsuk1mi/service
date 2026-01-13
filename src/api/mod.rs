@@ -25,8 +25,8 @@ use crate::repository::{
 use crate::service::{
     AuthService, BlockService, PushService, TelegramService, TelephonyService, UserService,
 };
-use crate::utils::encryption::Encryption;
 use crate::utils::apk::ApkCache;
+use crate::utils::encryption::Encryption;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
