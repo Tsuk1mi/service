@@ -61,22 +61,25 @@ async fn detect_release_client_version(state: &AppState, server_url: &str) -> Op
     }
 
     // 2) Пытаемся определить версию из имени APK (app-release-vX.Y.Z.apk)
-    let configured_path = state
-        .config
-        .app_apk_path
-        .clone()
-        .unwrap_or_else(|| "./android/app/build/outputs/apk/release/app-release.apk".to_string());
+    let configured_path =
+        state.config.app_apk_path.clone().unwrap_or_else(|| {
+            "./android/app/build/outputs/apk/release/app-release.apk".to_string()
+        });
 
     // Повторяем логику fallback, как в download endpoint
-    let candidate = find_latest_apk(&configured_path).await.or_else(|| async {
-        if configured_path.ends_with("app-release.apk") {
-            find_latest_apk("./android/app/build/outputs/apk/release").await
-                .or_else(|| find_latest_apk("./release").await)
-                .or_else(|| find_latest_apk("./release/apk").await)
-        } else {
-            None
+    let candidate = find_latest_apk(&configured_path).await.or_else(|| {
+        async {
+            if configured_path.ends_with("app-release.apk") {
+                find_latest_apk("./android/app/build/outputs/apk/release")
+                    .await
+                    .or_else(|| find_latest_apk("./release").await)
+                    .or_else(|| find_latest_apk("./release/apk").await)
+            } else {
+                None
+            }
         }
-    }.await);
+        .await
+    });
 
     if let Some(c) = candidate {
         if let Some((maj, min, pat)) = c.version {
