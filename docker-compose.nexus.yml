@@ -1,0 +1,18 @@
+services:
+  nexus:
+    image: sonatype/nexus3:3.77.1
+    container_name: nexus
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    volumes:
+      - nexus-data:/nexus-data
+    environment:
+      # при необходимости можно увеличить память JVM
+      # - INSTALL4J_ADD_VM_PARAMS=-Xms1200m -Xmx1200m -XX:MaxDirectMemorySize=2g
+      - NEXUS_SECURITY_RANDOMPASSWORD=true
+
+volumes:
+  nexus-data:
+
+

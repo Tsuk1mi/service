@@ -27,12 +27,15 @@ use crate::service::{
 };
 use crate::utils::apk::ApkCache;
 use crate::utils::encryption::Encryption;
+use reqwest::Client;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 #[derive(Clone)]
 pub struct AppState {
     pub config: Config,
+    /// HTTP клиент для исходящих запросов (например, проксирование APK из Nexus).
+    pub http_client: Client,
     pub encryption: Encryption,
     pub sms_service: SmsService,
     pub telephony_service: TelephonyService,

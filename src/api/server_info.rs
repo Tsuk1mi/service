@@ -1,5 +1,5 @@
 use crate::api::AppState;
-use crate::utils::apk::find_latest_apk_cached;
+use crate::utils::apk::{find_latest_apk_cached, parse_version_from_filename};
 use axum::{extract::State, http::HeaderMap, response::Json, routing::get, Router};
 use serde_json::json;
 use std::time::Duration;
@@ -49,6 +49,21 @@ fn append_cache_bust_version(url: String, version: Option<&str>) -> String {
     format!("{url}{joiner}v={version}")
 }
 
+fn filename_from_url(url: &str) -> Option<String> {
+    let trimmed = url.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let no_fragment = trimmed.split('#').next().unwrap_or(trimmed);
+    let no_query = no_fragment.split('?').next().unwrap_or(no_fragment);
+    let last = no_query.rsplit('/').next().unwrap_or(no_query).trim();
+    if last.is_empty() {
+        None
+    } else {
+        Some(last.to_string())
+    }
+}
+
 async fn detect_release_client_version(state: &AppState) -> Option<String> {
     // 1) Явная настройка имеет приоритет
     if let Some(v) = state
@@ -59,6 +74,21 @@ async fn detect_release_client_version(state: &AppState) -> Option<String> {
         .filter(|s| !s.is_empty())
     {
         return Some(v.to_string());
+    }
+
+    // 1.5) Если APK хранится в Nexus и ссылка известна — попробуем распарсить версию из имени файла URL.
+    if let Some(url) = state
+        .config
+        .nexus_apk_url
+        .as_deref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+    {
+        if let Some(fname) = filename_from_url(url) {
+            if let Some((maj, min, pat)) = parse_version_from_filename(&fname) {
+                return Some(format!("{maj}.{min}.{pat}"));
+            }
+        }
     }
 
     // 2) Пытаемся определить версию из имени APK (app-release-vX.Y.Z.apk)

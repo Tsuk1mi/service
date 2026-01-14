@@ -81,6 +81,7 @@ async fn main() -> Result<()> {
     // Создаём состояние приложения
     let app_state = AppState {
         config: config.clone(),
+        http_client: reqwest::Client::new(),
         encryption,
         sms_service,
         telephony_service,

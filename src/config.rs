@@ -20,6 +20,12 @@ pub struct Config {
     pub release_client_version: Option<String>,
     pub app_download_url: Option<String>,
     pub app_apk_path: Option<String>,
+    /// Если задано — `/api/app/download` будет проксировать APK из Nexus (Raw репозиторий или любой HTTP URL).
+    pub nexus_apk_url: Option<String>,
+    /// Опционально: Basic Auth для Nexus (если репозиторий приватный).
+    pub nexus_username: Option<String>,
+    /// Опционально: Basic Auth для Nexus (если репозиторий приватный).
+    pub nexus_password: Option<String>,
 }
 
 impl Config {
@@ -65,6 +71,11 @@ impl Config {
         let app_download_url = env::var("APP_DOWNLOAD_URL").ok();
         let app_apk_path = env::var("APP_APK_PATH").ok();
 
+        // Nexus (опционально)
+        let nexus_apk_url = env::var("NEXUS_APK_URL").ok();
+        let nexus_username = env::var("NEXUS_USERNAME").ok();
+        let nexus_password = env::var("NEXUS_PASSWORD").ok();
+
         Ok(Config {
             database_url,
             jwt_secret,
@@ -83,6 +94,9 @@ impl Config {
             release_client_version,
             app_download_url,
             app_apk_path,
+            nexus_apk_url,
+            nexus_username,
+            nexus_password,
         })
     }
 }

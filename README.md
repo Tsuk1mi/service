@@ -9,6 +9,12 @@ Backend сервис для мобильного приложения управ
 cp .env.example .env
 ```
 
+### Хранение APK/артефактов в Nexus
+
+См. подробный гайд: [NEXUS_GUIDE.md](NEXUS_GUIDE.md).
+
+Быстрый старт Nexus (Docker Compose): `docker compose -f docker-compose.nexus.yml up -d`
+
 2. Отредактируйте `.env` файл и укажите все необходимые параметры:
 
 ### Обязательные переменные окружения:
@@ -30,6 +36,9 @@ cp .env.example .env
 - `SMS_API_KEY` - (опционально) ключ авторизации для SMS провайдера.
 - `APP_APK_PATH` - Путь к APK файлу для скачивания (по умолчанию: `./android/app/build/outputs/apk/release/app-release.apk`)
 - `APP_DOWNLOAD_URL` - URL для скачивания приложения (используется в `/server-info`, опционально)
+- `NEXUS_APK_URL` - (Опционально) URL на APK в Nexus (Raw). Если задан — `/api/app/download` будет проксировать скачивание из Nexus
+- `NEXUS_USERNAME` - (Опционально) username для Basic Auth в Nexus
+- `NEXUS_PASSWORD` - (Опционально) password для Basic Auth в Nexus
 - `MIN_CLIENT_VERSION` - Минимальная обязательная версия клиента (принудительное обновление, формат: `1.0.0`, опционально)
 - `RELEASE_CLIENT_VERSION` - Последняя релизная версия клиента (опциональное обновление, формат: `1.1.0`, опционально)
 

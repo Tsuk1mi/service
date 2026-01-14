@@ -43,7 +43,7 @@ impl ApkCache {
     }
 }
 
-fn parse_version_from_filename(filename: &str) -> Option<(u64, u64, u64)> {
+pub fn parse_version_from_filename(filename: &str) -> Option<(u64, u64, u64)> {
     // Ожидаемые форматы:
     // - app-release-v1.0.56.apk
     // - app-release-1.0.56.apk
