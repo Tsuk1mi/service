@@ -555,6 +555,12 @@ jobs:
         if: env.NEXUS_URL != '' && env.NEXUS_APK_REPO != '' && env.NEXUS_USERNAME != '' && env.NEXUS_PASSWORD != ''
         run: |
           set -euo pipefail
+          # Sanitize vars/secrets: GitHub UI sometimes keeps trailing newlines/CRLF
+          NEXUS_URL="$(printf '%s' "${NEXUS_URL:-}" | tr -d '\r\n' | sed 's:/*$::')"
+          NEXUS_APK_REPO="$(printf '%s' "${NEXUS_APK_REPO:-}" | tr -d '\r\n' | sed 's:^/*::; s:/*$::')"
+          NEXUS_USERNAME="$(printf '%s' "${NEXUS_USERNAME:-}" | tr -d '\r\n')"
+          NEXUS_PASSWORD="$(printf '%s' "${NEXUS_PASSWORD:-}" | tr -d '\r\n')"
+
           VERSION_NAME="${{ steps.version.outputs.version_name }}"
           APK_DIR="android/app/build/outputs/apk/release"
           APK_VERSIONED="$APK_DIR/app-release-v${VERSION_NAME}.apk"
