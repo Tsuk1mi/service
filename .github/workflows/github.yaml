@@ -439,6 +439,11 @@ jobs:
         APK_DEPLOY_KEY: ${{ secrets.APK_DEPLOY_KEY }}
         APK_DEPLOY_PATH: ${{ secrets.APK_DEPLOY_PATH }}
         BUILD_NUMBER: ${{ github.run_number }}
+        # Nexus (Raw) upload for APK (optional)
+        NEXUS_URL: ${{ vars.NEXUS_URL }}
+        NEXUS_APK_REPO: ${{ vars.NEXUS_APK_REPO }}
+        NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
+        NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -545,6 +550,42 @@ jobs:
             mv app-release.apk "app-release-v${VERSION_NAME}.apk"
             echo "Renamed APK to app-release-v${VERSION_NAME}.apk"
           fi
+
+      - name: Upload APK to Nexus (raw) (optional)
+        if: env.NEXUS_URL != '' && env.NEXUS_APK_REPO != '' && env.NEXUS_USERNAME != '' && env.NEXUS_PASSWORD != ''
+        run: |
+          set -euo pipefail
+          VERSION_NAME="${{ steps.version.outputs.version_name }}"
+          APK_DIR="android/app/build/outputs/apk/release"
+          APK_VERSIONED="$APK_DIR/app-release-v${VERSION_NAME}.apk"
+
+          if [ ! -f "$APK_VERSIONED" ]; then
+            echo "ERROR: APK file not found: $APK_VERSIONED"
+            ls -la "$APK_DIR" || true
+            exit 1
+          fi
+
+          echo "Uploading versioned APK to Nexus..."
+          curl -f -u "$NEXUS_USERNAME:$NEXUS_PASSWORD" \
+            --upload-file "$APK_VERSIONED" \
+            "$NEXUS_URL/repository/$NEXUS_APK_REPO/app-release-v${VERSION_NAME}.apk"
+
+          echo "Uploading 'latest' APK to Nexus (app-release.apk)..."
+          curl -f -u "$NEXUS_USERNAME:$NEXUS_PASSWORD" \
+            --upload-file "$APK_VERSIONED" \
+            "$NEXUS_URL/repository/$NEXUS_APK_REPO/app-release.apk"
+
+          echo "Uploading latest.json metadata..."
+          cat > latest.json <<EOF
+          {"version":"$VERSION_NAME","file":"app-release-v${VERSION_NAME}.apk","latest":"app-release.apk"}
+          EOF
+          curl -f -u "$NEXUS_USERNAME:$NEXUS_PASSWORD" \
+            --upload-file latest.json \
+            "$NEXUS_URL/repository/$NEXUS_APK_REPO/latest.json"
+
+          echo "Nexus upload done."
+          echo "Versioned URL: $NEXUS_URL/repository/$NEXUS_APK_REPO/app-release-v${VERSION_NAME}.apk"
+          echo "Latest URL:    $NEXUS_URL/repository/$NEXUS_APK_REPO/app-release.apk"
 
       - name: Upload release APK
         if: success()
