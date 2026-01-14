@@ -259,6 +259,9 @@ async fn main() -> anyhow::Result<()> {
         release_client_version: None,
         app_download_url: None,
         app_apk_path: config.app_apk_path.clone(),
+        nexus_apk_url: None,
+        nexus_username: None,
+        nexus_password: None,
     };
     let sms_service = Arc::new(SmsService::new(sms_config));
 
