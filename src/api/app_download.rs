@@ -2,11 +2,11 @@ use crate::api::AppState;
 use crate::utils::apk::find_latest_apk_cached;
 use axum::{
     extract::State,
-    http::{header, HeaderMap, HeaderValue, StatusCode},
-    response::IntoResponse,
+    http::{header as axum_header, HeaderMap, HeaderValue, StatusCode},
     routing::get,
     Router,
 };
+use reqwest::header as reqwest_header;
 use std::time::Duration;
 use tokio::fs::File;
 use tokio_util::io::ReaderStream;
@@ -171,10 +171,9 @@ async fn proxy_apk_from_nexus(
         return Err(StatusCode::BAD_GATEWAY);
     }
 
-    let headers_in = resp.headers().clone();
-
-    let filename = headers_in
-        .get(header::CONTENT_DISPOSITION)
+    let filename = resp
+        .headers()
+        .get(reqwest_header::CONTENT_DISPOSITION)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| {
             // очень простой парсер filename="..."
@@ -185,30 +184,36 @@ async fn proxy_apk_from_nexus(
         .or_else(|| filename_from_url(nexus_url))
         .unwrap_or_else(|| "app-release.apk".to_string());
 
-    let content_type = headers_in
-        .get(header::CONTENT_TYPE)
+    let content_type = resp
+        .headers()
+        .get(reqwest_header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
         .unwrap_or("application/vnd.android.package-archive");
 
     let mut headers = HeaderMap::new();
     headers.insert(
-        header::CONTENT_TYPE,
+        axum_header::CONTENT_TYPE,
         HeaderValue::from_str(content_type).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
     );
     headers.insert(
-        header::CONTENT_DISPOSITION,
+        axum_header::CONTENT_DISPOSITION,
         HeaderValue::from_str(&format!("attachment; filename=\"{}\"", filename))
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
     );
     headers.insert(
-        header::CACHE_CONTROL,
+        axum_header::CACHE_CONTROL,
         HeaderValue::from_static("no-store, no-cache, must-revalidate, max-age=0"),
     );
-    headers.insert(header::PRAGMA, HeaderValue::from_static("no-cache"));
-    headers.insert(header::EXPIRES, HeaderValue::from_static("0"));
+    headers.insert(axum_header::PRAGMA, HeaderValue::from_static("no-cache"));
+    headers.insert(axum_header::EXPIRES, HeaderValue::from_static("0"));
 
-    if let Some(len) = headers_in.get(header::CONTENT_LENGTH) {
-        headers.insert(header::CONTENT_LENGTH, len.clone());
+    if let Some(len) = resp.headers().get(reqwest_header::CONTENT_LENGTH) {
+        if let Ok(v) = len.to_str() {
+            headers.insert(
+                axum_header::CONTENT_LENGTH,
+                HeaderValue::from_str(v).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
+            );
+        }
     }
 
     let stream = resp.bytes_stream();
