@@ -106,22 +106,22 @@ pub async fn download_app(
     // Формируем заголовки
     let mut headers = HeaderMap::new();
     headers.insert(
-        header::CONTENT_TYPE,
+        axum_header::CONTENT_TYPE,
         HeaderValue::from_static("application/vnd.android.package-archive"),
     );
     headers.insert(
-        header::CONTENT_DISPOSITION,
+        axum_header::CONTENT_DISPOSITION,
         HeaderValue::from_str(&format!("attachment; filename=\"{}\"", filename))
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
     );
     headers.insert(
-        header::CACHE_CONTROL,
+        axum_header::CACHE_CONTROL,
         HeaderValue::from_static("no-store, no-cache, must-revalidate, max-age=0"),
     );
-    headers.insert(header::PRAGMA, HeaderValue::from_static("no-cache"));
-    headers.insert(header::EXPIRES, HeaderValue::from_static("0"));
+    headers.insert(axum_header::PRAGMA, HeaderValue::from_static("no-cache"));
+    headers.insert(axum_header::EXPIRES, HeaderValue::from_static("0"));
     headers.insert(
-        header::CONTENT_LENGTH,
+        axum_header::CONTENT_LENGTH,
         HeaderValue::from_str(&meta.len().to_string())
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
     );
