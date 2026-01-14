@@ -33,13 +33,17 @@ impl ApkCache {
     }
 
     pub fn get_if_fresh(&self, ttl: Duration) -> Option<Option<ApkCandidate>> {
-        let Some(ts) = self.last_scan else {
-            return None;
-        };
+        let ts = self.last_scan?;
         if ts.elapsed() <= ttl {
             return Some(self.cached.clone());
         }
         None
+    }
+}
+
+impl Default for ApkCache {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
