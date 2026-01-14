@@ -571,23 +571,63 @@ jobs:
             exit 1
           fi
 
+          upload_file() {
+            local file="$1"
+            local url="$2"
+            local hint="${3:-}"
+
+            echo "PUT $url"
+            rm -f nexus_resp.txt
+
+            # - show response body on error
+            # - retry transient errors
+            local code
+            code="$(curl -sS -u "$NEXUS_USERNAME:$NEXUS_PASSWORD" \
+              --retry 5 --retry-delay 2 --retry-connrefused --retry-all-errors \
+              --connect-timeout 15 --max-time 600 \
+              --upload-file "$file" \
+              -o nexus_resp.txt \
+              -w "%{http_code}" \
+              "$url" || true)"
+
+            if [ "$code" -ge 200 ] && [ "$code" -lt 300 ]; then
+              echo "OK (HTTP $code)"
+              return 0
+            fi
+
+            echo "ERROR: Nexus upload failed (HTTP $code)"
+            if [ -s nexus_resp.txt ]; then
+              echo "---- Response body (first 2000 chars) ----"
+              head -c 2000 nexus_resp.txt || true
+              echo
+              echo "------------------------------------------"
+            fi
+            if [ -n "$hint" ]; then
+              echo "HINT: $hint"
+            fi
+            echo "HINT: проверьте логи Nexus (docker logs -f nexus), место на диске и настройки repo/blobstore."
+            return 1
+          }
+
           echo "Uploading versioned APK to Nexus..."
-          curl -f -u "$NEXUS_USERNAME:$NEXUS_PASSWORD" \
-            --upload-file "$APK_VERSIONED" \
+          upload_file \
+            "$APK_VERSIONED" \
             "$NEXUS_URL/repository/$NEXUS_APK_REPO/app-release-v${VERSION_NAME}.apk"
 
           echo "Uploading 'latest' APK to Nexus (app-release.apk)..."
-          curl -f -u "$NEXUS_USERNAME:$NEXUS_PASSWORD" \
-            --upload-file "$APK_VERSIONED" \
-            "$NEXUS_URL/repository/$NEXUS_APK_REPO/app-release.apk"
+          upload_file \
+            "$APK_VERSIONED" \
+            "$NEXUS_URL/repository/$NEXUS_APK_REPO/app-release.apk" \
+            "Для перезаливки app-release.apk включите в raw (hosted) repo Deployment policy: Allow redeploy"
 
           echo "Uploading latest.json metadata..."
           cat > latest.json <<EOF
           {"version":"$VERSION_NAME","file":"app-release-v${VERSION_NAME}.apk","latest":"app-release.apk"}
           EOF
-          curl -f -u "$NEXUS_USERNAME:$NEXUS_PASSWORD" \
-            --upload-file latest.json \
-            "$NEXUS_URL/repository/$NEXUS_APK_REPO/latest.json"
+          upload_file \
+            "latest.json" \
+            "$NEXUS_URL/repository/$NEXUS_APK_REPO/latest.json" \
+            "Если latest.json уже существует и redeploy отключён — включите Allow redeploy или грузите в версионный путь"
 
           echo "Nexus upload done."
           echo "Versioned URL: $NEXUS_URL/repository/$NEXUS_APK_REPO/app-release-v${VERSION_NAME}.apk"
