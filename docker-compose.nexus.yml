@@ -8,8 +8,10 @@ services:
     volumes:
       - nexus-data:/nexus-data
     environment:
-      # при необходимости можно увеличить память JVM
-      # - INSTALL4J_ADD_VM_PARAMS=-Xms1200m -Xmx1200m -XX:MaxDirectMemorySize=2g
+      # JVM params:
+      # - увеличиваем idle timeout Jetty, чтобы загрузки (PUT) больших файлов не падали с 500/Idle timeout 30000ms
+      # - при необходимости можно увеличить память JVM
+      - INSTALL4J_ADD_VM_PARAMS=-Djetty.http.idleTimeout=600000 -Xms1200m -Xmx1200m -XX:MaxDirectMemorySize=2g
       - NEXUS_SECURITY_RANDOMPASSWORD=true
 
 volumes:
