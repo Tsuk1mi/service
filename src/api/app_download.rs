@@ -214,6 +214,10 @@ async fn proxy_apk_from_nexus(
     let stream = resp.bytes_stream();
     let body = axum::body::Body::from_stream(stream);
 
-    tracing::info!("APK проксирован из Nexus: filename={}, url={}", filename, nexus_url);
+    tracing::info!(
+        "APK проксирован из Nexus: filename={}, url={}",
+        filename,
+        nexus_url
+    );
     Ok((StatusCode::OK, headers, body))
 }
