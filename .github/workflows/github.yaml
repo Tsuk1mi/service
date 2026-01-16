@@ -584,7 +584,8 @@ jobs:
             local code
             code="$(curl -sS -u "$NEXUS_USERNAME:$NEXUS_PASSWORD" \
               --retry 5 --retry-delay 2 --retry-connrefused --retry-all-errors \
-              --connect-timeout 15 --max-time 600 \
+              --connect-timeout 15 --max-time 7200 \
+              -H "Expect:" \
               --upload-file "$file" \
               -o nexus_resp.txt \
               -w "%{http_code}" \
