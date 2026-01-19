@@ -11,7 +11,7 @@ services:
       # JVM params:
       # - увеличиваем idle timeout Jetty, чтобы загрузки (PUT) больших файлов не падали с 500/Idle timeout 30000ms
       # - при необходимости можно увеличить память JVM
-      - INSTALL4J_ADD_VM_PARAMS=-Djetty.http.idleTimeout=600000 -Xms1200m -Xmx1200m -XX:MaxDirectMemorySize=2g
+      - INSTALL4J_ADD_VM_PARAMS=-Djetty.http.idleTimeout=600000 -Djetty.httpConfig.idleTimeout=600000 -Djetty.https.idleTimeout=600000 -Djetty.httpsConfig.idleTimeout=600000 -Xms1200m -Xmx1200m -XX:MaxDirectMemorySize=2g
       - NEXUS_SECURITY_RANDOMPASSWORD=true
 
 volumes:
