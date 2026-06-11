@@ -1,4 +1,3 @@
-pub mod app_download;
 pub mod auth;
 pub mod block;
 pub mod notification;
@@ -7,7 +6,6 @@ pub mod server_info;
 pub mod user;
 pub mod user_plate;
 
-pub use app_download::*;
 pub use auth::*;
 pub use block::*;
 pub use notification::*;
@@ -25,16 +23,12 @@ use crate::repository::{
 use crate::service::{
     AuthService, BlockService, PushService, TelegramService, TelephonyService, UserService,
 };
-use crate::utils::apk::ApkCache;
 use crate::utils::encryption::Encryption;
 use reqwest::Client;
-use std::sync::Arc;
-use tokio::sync::RwLock;
 
 #[derive(Clone)]
 pub struct AppState {
     pub config: Config,
-    /// HTTP клиент для исходящих запросов (например, проксирование APK из Nexus).
     pub http_client: Client,
     pub encryption: Encryption,
     pub sms_service: SmsService,
@@ -48,6 +42,4 @@ pub struct AppState {
     pub block_repository: PostgresBlockRepository,
     pub user_plate_repository: PostgresUserPlateRepository,
     pub notification_repository: PostgresNotificationRepository,
-    /// Кэш поиска APK (для `/server-info` и `/api/app/download`)
-    pub apk_cache: Arc<RwLock<ApkCache>>,
 }

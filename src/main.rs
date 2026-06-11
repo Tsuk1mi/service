@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use axum::{middleware, routing::get, Router};
 use rimskiy_service::api::{
-    app_download_router, auth_router, block_router, notification_router, ocr_router,
+    auth_router, block_router, notification_router, ocr_router,
     server_info_router, user_plate_router, user_router, AppState,
 };
 use rimskiy_service::auth::sms::SmsService;
@@ -17,11 +17,8 @@ use rimskiy_service::repository::{
 use rimskiy_service::service::{
     AuthService, BlockService, PushService, TelegramService, TelephonyService, UserService,
 };
-use rimskiy_service::utils::apk::{find_latest_apk_with_fallback, ApkCache};
 use rimskiy_service::utils::encryption::Encryption;
 use std::net::SocketAddr;
-use std::sync::Arc;
-use tokio::sync::RwLock;
 use tower_http::cors::CorsLayer;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -94,20 +91,7 @@ async fn main() -> Result<()> {
         block_repository,
         user_plate_repository,
         notification_repository,
-        apk_cache: Arc::new(RwLock::new(ApkCache::new())),
     };
-
-    // Прогреваем кэш APK на старте, чтобы первый `/server-info` не упирался в медленную FS.
-    // Если APK нет — кэшируется None, чтобы тоже не сканировать повторно мгновенно.
-    let configured_apk_path = config
-        .app_apk_path
-        .clone()
-        .unwrap_or_else(|| "./android/app/build/outputs/apk/release/app-release.apk".to_string());
-    let initial_candidate = find_latest_apk_with_fallback(&configured_apk_path).await;
-    {
-        let mut w = app_state.apk_cache.write().await;
-        w.set(initial_candidate);
-    }
 
     // Создаём OpenAPI документацию
     let openapi = ApiDoc::openapi();
@@ -117,7 +101,6 @@ async fn main() -> Result<()> {
         .route("/health", get(health_check))
         .merge(SwaggerUi::new("/swagger-ui").url("/api-doc/openapi.json", openapi.clone()))
         .merge(server_info_router())
-        .nest("/api/app", app_download_router())
         .nest("/api/auth", auth_router())
         .nest("/api/ocr", ocr_router())
         .nest(

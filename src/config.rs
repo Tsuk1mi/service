@@ -16,23 +16,15 @@ pub struct Config {
     pub sms_api_url: Option<String>,
     pub sms_api_key: Option<String>,
     pub fcm_server_key: Option<String>,
-    pub min_client_version: Option<String>,
-    pub release_client_version: Option<String>,
-    pub app_download_url: Option<String>,
-    pub app_apk_path: Option<String>,
-    /// Если задано — `/api/app/download` будет проксировать APK из Nexus (Raw репозиторий или любой HTTP URL).
-    pub nexus_apk_url: Option<String>,
-    /// Опционально: Basic Auth для Nexus (если репозиторий приватный).
-    pub nexus_username: Option<String>,
-    /// Опционально: Basic Auth для Nexus (если репозиторий приватный).
-    pub nexus_password: Option<String>,
+    pub web_app_url: Option<String>,
+    /// URL HTTP-эндпоинта бота для доставки SMS-кода (например http://telegram-bot:8081/send_code)
+    pub telegram_bot_http_url: Option<String>,
 }
 
 impl Config {
     pub fn from_env() -> Result<Self> {
         let database_url = env::var("DATABASE_URL").context("DATABASE_URL is required")?;
         let jwt_secret = env::var("JWT_SECRET").context("JWT_SECRET is required")?;
-        // Срок жизни JWT: по умолчанию 7 дней (10080 минут)
         let jwt_expiration_minutes = env::var("JWT_EXPIRATION_MINUTES")
             .unwrap_or_else(|_| "10080".to_string())
             .parse()
@@ -66,15 +58,8 @@ impl Config {
         let sms_api_url = env::var("SMS_API_URL").ok();
         let sms_api_key = env::var("SMS_API_KEY").ok();
         let fcm_server_key = env::var("FCM_SERVER_KEY").ok();
-        let min_client_version = env::var("MIN_CLIENT_VERSION").ok();
-        let release_client_version = env::var("RELEASE_CLIENT_VERSION").ok();
-        let app_download_url = env::var("APP_DOWNLOAD_URL").ok();
-        let app_apk_path = env::var("APP_APK_PATH").ok();
-
-        // Nexus (опционально)
-        let nexus_apk_url = env::var("NEXUS_APK_URL").ok();
-        let nexus_username = env::var("NEXUS_USERNAME").ok();
-        let nexus_password = env::var("NEXUS_PASSWORD").ok();
+        let web_app_url = env::var("WEB_APP_URL").ok();
+        let telegram_bot_http_url = env::var("TELEGRAM_BOT_HTTP_URL").ok();
 
         Ok(Config {
             database_url,
@@ -90,13 +75,8 @@ impl Config {
             sms_api_url,
             sms_api_key,
             fcm_server_key,
-            min_client_version,
-            release_client_version,
-            app_download_url,
-            app_apk_path,
-            nexus_apk_url,
-            nexus_username,
-            nexus_password,
+            web_app_url,
+            telegram_bot_http_url,
         })
     }
 }

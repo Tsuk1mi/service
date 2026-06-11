@@ -32,14 +32,14 @@ impl AuthService {
 
     /// Отправляет код авторизации в Telegram бот
     async fn send_code_to_telegram(&self, phone: &str, code: &str) -> Result<(), String> {
-        // Получаем порт бота (основной порт + 1)
-        let bot_port = self
-            .config
-            .server_port
-            .checked_add(1)
-            .ok_or_else(|| "Port overflow".to_string())?;
-
-        let bot_url = format!("http://localhost:{}/send_code", bot_port);
+        let bot_url = self.config.telegram_bot_http_url.clone().unwrap_or_else(|| {
+            let bot_port = self
+                .config
+                .server_port
+                .checked_add(1)
+                .unwrap_or(self.config.server_port);
+            format!("http://localhost:{}/send_code", bot_port)
+        });
 
         let payload = json!({
             "phone": phone,

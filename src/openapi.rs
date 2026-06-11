@@ -13,7 +13,7 @@ use crate::models::{
 #[openapi(
     info(
         title = "Rimskiy Service API",
-        description = "API для мобильного приложения управления перекрытыми автомобилями",
+        description = "API для веб-приложения управления перекрытыми автомобилями",
         version = "1.0.0",
         contact(
             name = "Rimskiy Service",
@@ -24,7 +24,6 @@ use crate::models::{
         (url = "http://localhost:8080", description = "Локальный сервер разработки"),
     ),
     paths(
-        crate::api::app_download::download_app,
         crate::api::auth::start_auth,
         crate::api::auth::verify_auth,
         crate::api::auth::refresh_token,
@@ -54,7 +53,6 @@ use crate::models::{
         CheckBlockResponse,
     )),
     tags(
-        (name = "app", description = "API для работы с приложением"),
         (name = "auth", description = "API для аутентификации пользователей"),
         (name = "users", description = "API для управления профилем пользователя"),
         (name = "blocks", description = "API для управления блокировками автомобилей"),
@@ -80,10 +78,6 @@ impl Modify for SecurityAddon {
                         .build(),
                 ),
             );
-
-            // Добавляем схему для UUID (если нужна явная схема)
-            // В utoipa 4.x UUID автоматически преобразуется в String с format = "uuid"
-            // через аннотации #[schema(value_type = String, format = "uuid")]
         }
     }
 }

@@ -1,50 +1,87 @@
 # Rimskiy Service
 
-Backend сервис для мобильного приложения управления перекрытыми автомобилями.
+Backend и веб-клиент для сервиса управления перекрытыми автомобилями на парковке.
 
-## Настройка
+## Структура проекта
 
-1. Скопируйте `.env.example` в `.env`:
+| Каталог | Описание |
+|---------|----------|
+| `src/` | Rust backend (Axum REST API) |
+| `src/bin/telegram_bot.rs` | Telegram-бот (авторизация, проверка блокировок) |
+| `web/` | React SPA (Vite + TypeScript + MUI) |
+| `deploy/` | Примеры конфигурации nginx |
+
+## Быстрый старт
+
+### Docker (HTTP, всё в контейнерах)
+
 ```bash
-cp .env.example .env
+cp .env.docker.example .env
+docker compose up --build -d
 ```
 
-### Хранение APK/артефактов в Nexus
+Откройте **http://localhost** — веб-приложение. API: **http://localhost:8080**.
 
-См. подробный гайд: [NEXUS_GUIDE.md](NEXUS_GUIDE.md).
+С Telegram-ботом (нужен `TELEGRAM_BOT_TOKEN` в `.env`):
 
-Быстрый старт Nexus (Docker Compose): `docker compose -f docker-compose.nexus.yml up -d`
+```bash
+docker compose --profile bot up --build -d
+```
 
-2. Отредактируйте `.env` файл и укажите все необходимые параметры:
+Остановка: `docker compose down` (данные PostgreSQL в volume `pgdata`).
 
-### Обязательные переменные окружения:
+### 1. Backend (локально)
 
-- `DATABASE_URL` - URL подключения к PostgreSQL (например: `postgresql://user:password@localhost/dbname`)
-- `JWT_SECRET` - Секретный ключ для JWT токенов (минимум 32 символа)
-- `ENCRYPTION_KEY` - Ключ шифрования (должен быть ровно 64 hex символа = 32 байта)
+```bash
+cp .env.example .env
+# Отредактируйте .env (DATABASE_URL, JWT_SECRET, ENCRYPTION_KEY)
+cargo run
+```
 
-### Опциональные переменные окружения (имеют значения по умолчанию):
+### 2. Telegram-бот (опционально)
 
-- `JWT_EXPIRATION_MINUTES` - Время жизни JWT токена в минутах (по умолчанию: `3`)
-- `SERVER_HOST` - IP адрес для прослушивания (по умолчанию: `0.0.0.0`)
-- `SERVER_PORT` - Порт сервера (по умолчанию: `8080`)
-- `MIGRATIONS_PATH` - Путь к папке с миграциями (по умолчанию: `./migrations`)
-- `SMS_CODE_EXPIRATION_MINUTES` - Время жизни SMS кода в минутах (по умолчанию: `10`)
-- `SMS_CODE_LENGTH` - Длина SMS кода (по умолчанию: `4`)
-- `RETURN_SMS_CODE_IN_RESPONSE` - Возвращать ли SMS код в ответе API (по умолчанию: `false`, включайте только для разработки)
-- `SMS_API_URL` - URL провайдера SMS. Если указан — сервер будет отправлять SMS через этот URL.
-- `SMS_API_KEY` - (опционально) ключ авторизации для SMS провайдера.
-- `APP_APK_PATH` - Путь к APK файлу для скачивания (по умолчанию: `./android/app/build/outputs/apk/release/app-release.apk`)
-- `APP_DOWNLOAD_URL` - URL для скачивания приложения (используется в `/server-info`, опционально)
-- `NEXUS_APK_URL` - (Опционально) URL на APK в Nexus (Raw). Если задан — `/api/app/download` будет проксировать скачивание из Nexus
-- `NEXUS_USERNAME` - (Опционально) username для Basic Auth в Nexus
-- `NEXUS_PASSWORD` - (Опционально) password для Basic Auth в Nexus
-- `MIN_CLIENT_VERSION` - Минимальная обязательная версия клиента (принудительное обновление, формат: `1.0.0`, опционально)
-- `RELEASE_CLIENT_VERSION` - Последняя релизная версия клиента (опциональное обновление, формат: `1.1.0`, опционально)
+```bash
+cargo run --bin telegram_bot
+```
+
+Требуется `TELEGRAM_BOT_TOKEN` в `.env`.
+
+### 3. Веб-клиент (разработка)
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+Откройте http://localhost:5173 — API проксируется на `http://localhost:8080`.
+
+### 4. Production (nginx)
+
+1. Соберите frontend: `cd web && npm run build`
+2. Скопируйте `web/dist/` на сервер (например `/var/www/rimskiy/web`)
+3. Настройте nginx по примеру [`deploy/nginx.conf.example`](deploy/nginx.conf.example)
+4. Укажите `WEB_APP_URL=https://your-domain.com` в `.env` backend
+
+## Переменные окружения
+
+### Обязательные
+
+- `DATABASE_URL` — PostgreSQL
+- `JWT_SECRET` — секрет JWT (минимум 32 символа)
+- `ENCRYPTION_KEY` — 64 hex символа (32 байта)
+
+### Опциональные
+
+- `SERVER_HOST` / `SERVER_PORT` — адрес API (по умолчанию `0.0.0.0:8080`)
+- `WEB_APP_URL` — URL веб-приложения (для `/server-info` и Telegram `/apk`)
+- `TELEGRAM_BOT_TOKEN` / `TELEGRAM_BOT_USERNAME` — Telegram-бот
+- `SMS_API_URL` / `SMS_API_KEY` — SMS-провайдер
+- `TELEPHONY_API_URL` / `TELEPHONY_API_KEY` — звонки владельцам
+
+Полный список: [`.env.example`](.env.example)
 
 ## Генерация ключа шифрования
-
-Для генерации безопасного ключа шифрования (64 hex символа):
 
 ```bash
 # Linux/Mac
@@ -54,211 +91,39 @@ openssl rand -hex 32
 -join ((48..57) + (97..102) | Get-Random -Count 64 | ForEach-Object {[char]$_})
 ```
 
-## Настройка CI/CD (GitHub Actions)
+## CI/CD (GitHub Actions)
 
-Для автоматического деплоя через GitHub Actions необходимо настроить Variables и Secrets в репозитории:
+### Variables
 
-### GitHub Variables (Settings → Secrets and variables → Actions → Variables):
+- `DEPLOY_HOST`, `DEPLOY_USER`, `BACKEND_DEPLOY_PATH`, `BACKEND_SERVICE_NAME`, `TELEGRAM_BOT_SERVICE_NAME`
+- `WEB_DEPLOY_HOST`, `WEB_DEPLOY_PATH` — деплой статики frontend (опционально)
 
-- `DEPLOY_HOST` - IP адрес или домен сервера для деплоя (например: `192.168.1.100`)
-- `DEPLOY_USER` - Пользователь для SSH подключения (например: `deploy`)
-- `BACKEND_DEPLOY_PATH` - Путь для деплоя бинарных файлов (например: `/opt/rimskiy-service`)
-- `BACKEND_SERVICE_NAME` - Имя systemd сервиса для основного сервиса (например: `rimskiy-service`)
-- `TELEGRAM_BOT_SERVICE_NAME` - Имя systemd сервиса для Telegram бота (например: `telegram-bot`)
+### Secrets
 
-### GitHub Secrets (Settings → Secrets and variables → Actions → Secrets):
+- `DEPLOY_KEY` — SSH ключ для backend
+- `WEB_DEPLOY_KEY` — SSH ключ для frontend (опционально)
 
-- `DEPLOY_KEY` - Приватный SSH ключ для доступа к серверу (содержимое файла `~/.ssh/id_rsa`)
-- `APK_DEPLOY_HOST` - (Опционально) IP/домен для деплоя APK файлов
-- `APK_DEPLOY_USER` - (Опционально) Пользователь для деплоя APK
-- `APK_DEPLOY_KEY` - (Опционально) SSH ключ для деплоя APK
-- `APK_DEPLOY_PATH` - (Опционально) Путь для деплоя APK (например: `/var/www/html/apk`)
-- `ANDROID_KEYSTORE_BASE64` - (Опционально) Base64-encoded keystore файл для подписи Android приложения
-- `ANDROID_KEYSTORE_PASSWORD` - (Опционально) Пароль от keystore
-- `ANDROID_KEY_ALIAS` - (Опционально) Alias ключа в keystore
-- `ANDROID_KEY_PASSWORD` - (Опционально) Пароль от ключа
+## Telegram-бот
 
-**Важно:** Переменные из `.env.example` (DATABASE_URL, JWT_SECRET и т.д.) НЕ нужно добавлять в GitHub - они должны быть только в `.env` файле на сервере!
+Команды:
 
-**Подробная инструкция:** См. [DEPLOY_SETUP.md](DEPLOY_SETUP.md) для детальных инструкций по настройке всех переменных, включая создание Android keystore и настройку SSH ключей.
+- `/help` — справка
+- `/code <телефон>` — код авторизации (SMS + Telegram)
+- `/block <номер>` — проверка блокировки
+- `/apk` — ссылка на веб-приложение
 
-## Запуск
+## API
 
-1. Убедитесь, что PostgreSQL запущен и база данных создана
-2. Запустите миграции (если используете sqlx-cli):
-```bash
-sqlx migrate run
-```
+- Swagger UI: http://localhost:8080/swagger-ui/
+- OpenAPI: http://localhost:8080/api-doc/openapi.json
+- Health: http://localhost:8080/health
+- Server info: http://localhost:8080/server-info
 
-3. Запустите сервер:
-```bash
-cargo run
-```
+## Функции веб-клиента
 
-4. (Опционально) Запустите Telegram бота для авторизации:
-```bash
-cargo run --bin telegram_bot
-```
-
-Для работы бота необходимо указать `TELEGRAM_BOT_TOKEN` в `.env` файле (получить токен можно у [@BotFather](https://t.me/BotFather) в Telegram).
-
-### Настройка Telegram бота как systemd сервиса (для production)
-
-Для запуска Telegram бота как системного сервиса на Linux:
-
-1. Создайте файл `/etc/systemd/system/telegram-bot.service`:
-```ini
-[Unit]
-Description=Telegram Bot for Rimskiy Service
-After=network.target
-
-[Service]
-Type=simple
-User=your-user
-WorkingDirectory=/opt/rimskiy-service
-ExecStart=/opt/rimskiy-service/telegram_bot
-Restart=always
-RestartSec=10
-Environment="RUST_LOG=info"
-EnvironmentFile=-/opt/rimskiy-service/.env
-
-[Install]
-WantedBy=multi-user.target
-```
-
-2. Замените `your-user` на пользователя, от имени которого будет запускаться бот
-
-3. Убедитесь, что файл `.env` находится в `/opt/rimskiy-service/` и содержит `TELEGRAM_BOT_TOKEN`
-
-4. Активируйте и запустите сервис:
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable telegram-bot
-sudo systemctl start telegram-bot
-```
-
-5. Проверьте статус:
-```bash
-sudo systemctl status telegram-bot
-```
-
-6. Просмотр логов:
-```bash
-sudo journalctl -u telegram-bot -f
-```
-
-## Telegram Бот для авторизации
-
-Telegram бот позволяет получать коды авторизации через Telegram и автоматически отправляет SMS на указанный номер телефона.
-
-### Настройка бота
-
-1. Создайте бота через [@BotFather](https://t.me/BotFather) в Telegram
-2. Получите токен бота
-3. Добавьте токен в `.env` файл:
-   ```
-   TELEGRAM_BOT_TOKEN=your-telegram-bot-token-here
-   ```
-
-### Настройка автоматической отправки SMS (опционально)
-
-Для автоматической отправки SMS кодов на телефон пользователя настройте SMS провайдера:
-
-1. Добавьте в `.env` файл:
-   ```
-   SMS_API_URL=https://api.sms-provider.com/send
-   SMS_API_KEY=your-sms-api-key-here
-   ```
-
-2. Адаптируйте метод `send_sms` в `src/auth/sms.rs` под API вашего SMS провайдера
-
-**Примечание**: Если SMS провайдер не настроен, бот будет отправлять коды только в Telegram. Это удобно для разработки и тестирования.
-
-### Команды бота
-
-- `/help` - Показать справку
-- `/code <телефон>` - Запросить код авторизации для указанного номера телефона
-- `/block <номер>` - Проверить блокировку автомобиля
-- `/apk` - Получить последнюю версию приложения (APK файл)
-
-Примеры использования:
-```
-/code +79001234567
-/block А123БВ777
-/apk
-```
-
-#### Команда /code
-Бот автоматически:
-1. ✅ Отправит SMS с кодом на указанный номер телефона (если настроен SMS провайдер)
-2. ✅ Отправит код в Telegram для удобства
-3. ✅ Сообщит о статусе отправки SMS
-
-Код можно использовать в приложении для входа.
-
-#### Команда /block
-Проверяет, заблокирован ли указанный автомобиль. Показывает информацию о блокировке, если автомобиль заблокирован.
-
-#### Команда /apk
-Отправляет последнюю версию приложения (APK файл) пользователю в Telegram. Бот автоматически:
-1. Ищет APK файл в стандартных местах (`/opt/rimskiy-service/apk/app-release.apk`, `/var/www/html/apk/app-release.apk`)
-2. Если файл не найден, загружает его через API endpoint `/api/app/download`
-3. Отправляет APK файл пользователю
-
-Для работы команды `/apk` необходимо:
-- Настроить `APP_APK_PATH` в `.env` (опционально, бот будет искать в стандартных местах)
-- Или настроить `APP_DOWNLOAD_URL` для доступа через API
-- Убедиться, что APK файл доступен на сервере
-
-## API Документация
-
-### Swagger UI
-
-После запуска сервера доступна интерактивная документация API:
-
-- **Swagger UI**: http://localhost:8080/swagger-ui/
-- **OpenAPI JSON**: http://localhost:8080/api-doc/openapi.json
-
-Swagger UI позволяет:
-- Просматривать все доступные эндпоинты
-- Тестировать API прямо из браузера
-- Видеть схемы данных и примеры запросов/ответов
-- Авторизоваться через JWT токен
-
-### Основные API Endpoints
-
-#### Аутентификация
-- `POST /api/auth/start` - Начало авторизации (получение SMS кода)
-- `POST /api/auth/verify` - Подтверждение авторизации (получение JWT токена)
-- `POST /api/auth/refresh` - Обновление JWT токена
-
-#### Пользователи
-- `GET /api/users/me` - Получение профиля пользователя (требует авторизации)
-- `PUT /api/users/me` - Обновление профиля пользователя (требует авторизации)
-- `GET /api/users/by-plate?plate=XXX` - Получение публичной информации о пользователе по номеру (требует авторизации)
-
-#### Блокировки
-- `POST /api/blocks` - Создание блокировки автомобиля (требует авторизации)
-- `GET /api/blocks` - Получение списка созданных блокировок (требует авторизации)
-- `GET /api/blocks/my` - Получение списка тех, кто перекрыл пользователя (требует авторизации)
-- `GET /api/blocks/check?plate=XXX` - Проверка, заблокирована ли машина (требует авторизации)
-- `DELETE /api/blocks/{id}` - Удаление блокировки (требует авторизации)
-- `POST /api/blocks/{id}/warn-owner` - Предупредить владельца (звонок) (требует авторизации)
-
-#### Приложение
-- `GET /api/app/download` - Скачать релиз приложения (APK файл)
-
-#### Другие
-- `GET /health` - Проверка здоровья сервера
-- `GET /server-info` - Информация о сервере (версия, URL, минимальная версия клиента)
-
-## Особенности
-
-- **JWT токены**: Время жизни токена составляет 3 минуты по умолчанию. Токен автоматически обновляется на клиенте, если он истекает в ближайшие 30 секунд.
-- **Логирование**: Все API запросы логируются на сервере с указанием метода, пути, статуса ответа и времени выполнения.
-- **Автоматическое обновление токена**: Клиент автоматически обновляет токен перед истечением, если пользователь активен в приложении.
-- **Уведомление владельца**: При создании блокировки можно включить функцию "Предупредить владельца", которая автоматически позвонит владельцу заблокированного автомобиля через API телефонии.
-- **Автозамена номера телефона**: При вводе номера телефона автоматически заменяются 8 или 7 на +7.
-- **Портретная ориентация**: Приложение зафиксировано в портретном режиме.
-- **Автоматическое версионирование**: При сборке релиза версия автоматически обновляется на основе git тегов. Для создания нового релиза создайте тег: `git tag v1.0.0 && git push origin v1.0.0`
-
+- Авторизация по SMS / Telegram
+- Профиль и управление автомобилями
+- Создание блокировок (ручной ввод + OCR фото)
+- Список «кто меня перекрыл» с контактами
+- In-app уведомления (polling)
+- Предупреждение владельца (звонок через backend)

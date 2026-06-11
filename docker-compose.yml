@@ -1,0 +1,83 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rimskiy}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rimskiy}
+      POSTGRES_DB: ${POSTGRES_DB:-rimskiy}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rimskiy} -d ${POSTGRES_DB:-rimskiy}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-rimskiy}:${POSTGRES_PASSWORD:-rimskiy}@db:5432/${POSTGRES_DB:-rimskiy}
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-in-production-min-32-chars}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-10080}
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+      MIGRATIONS_PATH: ./migrations
+      RETURN_SMS_CODE_IN_RESPONSE: ${RETURN_SMS_CODE_IN_RESPONSE:-true}
+      WEB_APP_URL: ${WEB_APP_URL:-http://localhost}
+      TELEGRAM_BOT_HTTP_URL: http://telegram-bot:8081/send_code
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      RUST_LOG: ${RUST_LOG:-info}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  telegram-bot:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    restart: unless-stopped
+    command: ["/app/telegram_bot"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-rimskiy}:${POSTGRES_PASSWORD:-rimskiy}@db:5432/${POSTGRES_DB:-rimskiy}
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-in-production-min-32-chars}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+      RETURN_SMS_CODE_IN_RESPONSE: ${RETURN_SMS_CODE_IN_RESPONSE:-true}
+      API_BASE_URL: http://backend:8080
+      WEB_APP_URL: ${WEB_APP_URL:-http://localhost}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      RUST_LOG: ${RUST_LOG:-info}
+    depends_on:
+      db:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    profiles:
+      - bot
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  pgdata:

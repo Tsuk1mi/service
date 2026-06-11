@@ -1,0 +1,12 @@
+target
+.git
+.idea
+web/node_modules
+web/dist
+android
+ios
+**/*.md
+!README.md
+.env
+.env.*
+!.env.docker.example

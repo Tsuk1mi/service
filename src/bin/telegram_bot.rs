@@ -25,7 +25,7 @@ enum Command {
     Code,
     #[command(description = "Проверить блокировку: /block <номер>")]
     Block,
-    #[command(description = "Получить последнюю версию приложения: /apk")]
+    #[command(description = "Открыть веб-приложение: /apk")]
     Apk,
 }
 
@@ -38,7 +38,7 @@ struct BotConfig {
     sms_api_key: Option<String>,
     server_host: String,
     server_port: u16,
-    app_apk_path: Option<String>,
+    web_app_url: Option<String>,
 }
 
 #[derive(Clone)]
@@ -47,7 +47,7 @@ struct BotState {
     config: Arc<BotConfig>,
     http_client: reqwest::Client,
     api_base_url: String,
-    apk_path: Option<String>,
+    web_app_url: Option<String>,
     bot: Bot,
     telegram_bot_repository: Arc<PostgresTelegramBotRepository>,
     user_repository: Arc<PostgresUserRepository>,
@@ -79,7 +79,7 @@ fn load_bot_config() -> anyhow::Result<BotConfig> {
         .unwrap_or_else(|_| "8080".to_string())
         .parse()
         .context("SERVER_PORT must be a valid number")?;
-    let app_apk_path = std::env::var("APP_APK_PATH").ok();
+    let web_app_url = std::env::var("WEB_APP_URL").ok();
 
     Ok(BotConfig {
         sms_code_expiration_minutes,
@@ -89,7 +89,7 @@ fn load_bot_config() -> anyhow::Result<BotConfig> {
         sms_api_key,
         server_host,
         server_port,
-        app_apk_path,
+        web_app_url,
     })
 }
 
@@ -255,13 +255,8 @@ async fn main() -> anyhow::Result<()> {
         sms_api_url: config.sms_api_url.clone(),
         sms_api_key: config.sms_api_key.clone(),
         fcm_server_key: None,
-        min_client_version: None,
-        release_client_version: None,
-        app_download_url: None,
-        app_apk_path: config.app_apk_path.clone(),
-        nexus_apk_url: None,
-        nexus_username: None,
-        nexus_password: None,
+        web_app_url: config.web_app_url.clone(),
+        telegram_bot_http_url: None,
     };
     let sms_service = Arc::new(SmsService::new(sms_config));
 
@@ -269,21 +264,11 @@ async fn main() -> anyhow::Result<()> {
     let api_base_url = std::env::var("API_BASE_URL")
         .unwrap_or_else(|_| format!("http://{}:{}", config.server_host, config.server_port));
 
-    // Определяем путь к APK файлу
-    let apk_path = config.app_apk_path.clone().or_else(|| {
-        // Пробуем найти APK в стандартных местах
-        let default_paths = vec![
-            "/opt/rimskiy-service/apk/app-release.apk",
-            "/var/www/html/apk/app-release.apk",
-            "./android/app/build/outputs/apk/release/app-release.apk",
-        ];
-        for path in default_paths {
-            if std::path::Path::new(path).exists() {
-                return Some(path.to_string());
-            }
-        }
-        None
-    });
+    let web_app_url = config
+        .web_app_url
+        .clone()
+        .or_else(|| std::env::var("WEB_APP_URL").ok())
+        .filter(|s| !s.trim().is_empty());
 
     let bot = Bot::new(token.clone());
 
@@ -292,14 +277,14 @@ async fn main() -> anyhow::Result<()> {
         config,
         http_client: reqwest::Client::new(),
         api_base_url,
-        apk_path,
+        web_app_url,
         bot: bot.clone(),
         telegram_bot_repository: telegram_bot_repository.clone(),
         user_repository: user_repository.clone(),
     });
 
     tracing::info!("Telegram бот запущен");
-    tracing::info!("APK путь: {:?}", bot_state.apk_path);
+    tracing::info!("Web app URL: {:?}", bot_state.web_app_url);
     tracing::info!("API базовый URL: {}", bot_state.api_base_url);
 
     // Запускаем HTTP сервер для приема запросов на отправку кода
@@ -872,123 +857,19 @@ async fn handle_block_command(
 }
 
 async fn handle_apk_command(bot: &Bot, msg: &Message, state: &BotState) -> ResponseResult<()> {
-    tracing::info!(
-        "Обработка команды /apk: чат = {}, APK путь = {:?}",
+    let web_url = state
+        .web_app_url
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or(state.api_base_url.as_str());
+
+    bot.send_message(
         msg.chat.id,
-        state.apk_path
-    );
-    // Отправляем сообщение о начале обработки
-    let processing_msg = bot
-        .send_message(msg.chat.id, "⏳ Загружаю приложение...")
-        .await?;
-
-    // Пробуем отправить APK файл напрямую с диска
-    let apk_sent = if let Some(apk_path) = &state.apk_path {
-        if std::path::Path::new(apk_path).exists() {
-            match tokio::fs::read(apk_path).await {
-                Ok(apk_data) => {
-                    let file_name = std::path::Path::new(apk_path)
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .map(|s| s.to_string())
-                        .unwrap_or_else(|| "app-release.apk".to_string());
-
-                    match bot
-                        .send_document(
-                            msg.chat.id,
-                            teloxide::types::InputFile::memory(apk_data).file_name(file_name),
-                        )
-                        .await
-                    {
-                        Ok(_) => {
-                            let _ = bot.delete_message(msg.chat.id, processing_msg.id).await;
-                            bot.send_message(
-                                msg.chat.id,
-                                "✅ Приложение отправлено. Установите APK файл.",
-                            )
-                            .await?;
-                            true
-                        }
-                        Err(e) => {
-                            tracing::error!("Ошибка при отправке APK: {}", e);
-                            false
-                        }
-                    }
-                }
-                Err(e) => {
-                    tracing::error!("Ошибка при чтении APK файла {}: {}", apk_path, e);
-                    false
-                }
-            }
-        } else {
-            false
-        }
-    } else {
-        false
-    };
-
-    if !apk_sent {
-        // Если не удалось отправить файл напрямую, пробуем через API
-        let download_url = format!("{}/api/app/download", state.api_base_url);
-        let _ = bot.delete_message(msg.chat.id, processing_msg.id).await;
-
-        match state.http_client.get(&download_url).send().await {
-            Ok(response) => {
-                if response.status().is_success() {
-                    match response.bytes().await {
-                        Ok(apk_data) => {
-                            match bot
-                                .send_document(
-                                    msg.chat.id,
-                                    teloxide::types::InputFile::memory(apk_data.to_vec())
-                                        .file_name("app-release.apk"),
-                                )
-                                .await
-                            {
-                                Ok(_) => {
-                                    // Удаляем сообщение о процессе
-                                    let _ =
-                                        bot.delete_message(msg.chat.id, processing_msg.id).await;
-
-                                    bot.send_message(
-                                        msg.chat.id,
-                                        "✅ Приложение отправлено. Установите APK файл.",
-                                    )
-                                    .await?;
-                                }
-                                Err(_e) => {
-                                    let _ =
-                                        bot.delete_message(msg.chat.id, processing_msg.id).await;
-                                    bot.send_message(
-                                        msg.chat.id,
-                                        "❌ Ошибка при отправке приложения.",
-                                    )
-                                    .await?;
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            let _ = bot.delete_message(msg.chat.id, processing_msg.id).await;
-                            bot.send_message(msg.chat.id, "❌ Ошибка при загрузке приложения.")
-                                .await?;
-                            tracing::error!("Ошибка при загрузке APK через API: {}", e);
-                        }
-                    }
-                } else {
-                    let _ = bot.delete_message(msg.chat.id, processing_msg.id).await;
-                    bot.send_message(msg.chat.id, "❌ Приложение не найдено на сервере.")
-                        .await?;
-                    tracing::warn!("APK файл не найден по URL: {}", download_url);
-                }
-            }
-            Err(e) => {
-                let _ = bot.delete_message(msg.chat.id, processing_msg.id).await;
-                bot.send_message(msg.chat.id, "❌ Ошибка при запросе к серверу.")
-                    .await?;
-                tracing::error!("Ошибка запроса APK: {}", e);
-            }
-        }
-    }
+        format!(
+            "🌐 Веб-приложение Rimskiy:\n{web_url}\n\nОткройте ссылку в браузере для управления блокировками."
+        ),
+    )
+    .await?;
 
     Ok(())
 }
@@ -1008,7 +889,7 @@ async fn message_handler(
                 Примеры использования:\n\
                 /code +79001234567 - получить код авторизации\n\
                 /block А123БВ777 - проверить блокировку автомобиля\n\
-                /apk - получить последнюю версию приложения",
+                /apk - открыть веб-приложение",
                 Command::descriptions()
             );
 
@@ -1019,7 +900,7 @@ async fn message_handler(
                     "get_code",
                 )],
                 vec![teloxide::types::InlineKeyboardButton::callback(
-                    "📲 Получить приложение",
+                    "🌐 Открыть веб-приложение",
                     "get_app",
                 )],
             ]);
