@@ -73,3 +73,20 @@ impl Encryption {
         Ok(String::from_utf8(plaintext)?)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const TEST_KEY: &str =
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+    #[test]
+    fn encrypt_decrypt_roundtrip() {
+        let enc = Encryption::new(TEST_KEY).unwrap();
+        let plaintext = "+79001234567";
+        let ciphertext = enc.encrypt(plaintext).unwrap();
+        let decrypted = enc.decrypt(&ciphertext).unwrap();
+        assert_eq!(decrypted, plaintext);
+    }
+}

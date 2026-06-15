@@ -1,0 +1,16 @@
+{
+  "name": "Rimskiy",
+  "short_name": "Rimskiy",
+  "description": "Управление перекрытыми автомобилями на парковке",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1976d2",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

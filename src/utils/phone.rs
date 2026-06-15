@@ -1,3 +1,13 @@
+use sha2::{Digest, Sha256};
+
+/// SHA-256 хэш нормализованного номера телефона (для поиска без расшифровки)
+pub fn phone_hash(phone: &str) -> String {
+    let normalized = normalize_phone(phone);
+    let mut hasher = Sha256::new();
+    hasher.update(normalized.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
 /// Нормализует номер телефона (удаляет пробелы, дефисы, скобки)
 /// Автоматически заменяет 8 или 7 на +7
 pub fn normalize_phone(phone: &str) -> String {
@@ -56,7 +66,6 @@ pub fn format_phone(phone: &str) -> String {
             &normalized[10..12]
         )
     } else if normalized.starts_with("8") && normalized.len() == 11 {
-        // 8 (XXX) XXX-XX-XX
         format!(
             "8 ({}) {}-{}-{}",
             &normalized[1..4],
@@ -66,5 +75,23 @@ pub fn format_phone(phone: &str) -> String {
         )
     } else {
         normalized
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn phone_hash_is_deterministic() {
+        let h1 = phone_hash("+79001234567");
+        let h2 = phone_hash("8 900 123-45-67");
+        assert_eq!(h1, h2);
+    }
+
+    #[test]
+    fn normalize_russian_phone() {
+        assert_eq!(normalize_phone("89001234567"), "+79001234567");
+        assert_eq!(normalize_phone("+79001234567"), "+79001234567");
     }
 }

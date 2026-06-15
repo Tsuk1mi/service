@@ -18,18 +18,8 @@ impl TelegramService {
         }
     }
 
-    /// Отправляет уведомление о блокировке через Telegram
-    ///
-    /// Примечание: Для отправки сообщений через Telegram Bot API нужен chat_id пользователя.
-    /// Пользователь должен сначала начать диалог с ботом (например, отправив /start).
-    /// В текущей реализации используется попытка отправки по username, но это может не работать,
-    /// если пользователь не начал диалог с ботом. Для полной реализации нужно хранить chat_id в БД.
-    pub async fn send_block_notification(
-        &self,
-        telegram_username: &str,
-        blocked_plate: &str,
-        blocker_name: &str,
-    ) -> Result<(), String> {
+    /// Отправляет сообщение по chat_id (предпочтительный способ)
+    pub async fn send_message_to_chat(&self, chat_id: i64, message: &str) -> Result<(), String> {
         let token = match &self.bot_token {
             Some(t) if !t.is_empty() => t,
             _ => {
@@ -38,7 +28,40 @@ impl TelegramService {
             }
         };
 
-        // Формируем сообщение
+        let url = format!("https://api.telegram.org/bot{}/sendMessage", token);
+        let response = self
+            .client
+            .post(&url)
+            .json(&json!({
+                "chat_id": chat_id,
+                "text": message
+            }))
+            .send()
+            .await
+            .map_err(|e| format!("Telegram API request failed: {}", e))?;
+
+        if response.status().is_success() {
+            tracing::info!("Telegram message sent to chat_id {}", chat_id);
+            Ok(())
+        } else {
+            let error_text = response.text().await.unwrap_or_default();
+            tracing::warn!(
+                "Telegram API error for chat_id {}: {}",
+                chat_id,
+                error_text
+            );
+            Ok(())
+        }
+    }
+
+    /// Отправляет уведомление о блокировке (chat_id приоритетнее username)
+    pub async fn send_block_notification(
+        &self,
+        chat_id: Option<i64>,
+        telegram_username: Option<&str>,
+        blocked_plate: &str,
+        blocker_name: &str,
+    ) -> Result<(), String> {
         let message = format!(
             "🚗 Ваш автомобиль {} заблокирован\n\n\
             👤 Блокирующий: {}\n\n\
@@ -46,37 +69,38 @@ impl TelegramService {
             blocked_plate, blocker_name
         );
 
-        // Отправляем через Telegram Bot API
-        // Пытаемся отправить по username (работает только если пользователь начал диалог с ботом)
-        let url = format!("https://api.telegram.org/bot{}/sendMessage", token);
-        let clean_username = telegram_username.trim_start_matches('@');
-
-        let response = self
-            .client
-            .post(&url)
-            .json(&json!({
-                "chat_id": format!("@{}", clean_username),
-                "text": message
-            }))
-            .send()
-            .await
-            .map_err(|e| format!("Telegram API request failed: {}", e))?;
-
-        let status = response.status();
-        if status.is_success() {
-            tracing::info!("Telegram notification sent to @{}", clean_username);
-            Ok(())
-        } else {
-            let error_text = response.text().await.unwrap_or_default();
-            tracing::warn!(
-                "Telegram API error for @{}: {} - {}",
-                clean_username,
-                status,
-                error_text
-            );
-            // Не возвращаем ошибку, так как это не критично
-            // Пользователь может не начать диалог с ботом
-            Ok(())
+        if let Some(cid) = chat_id {
+            return self.send_message_to_chat(cid, &message).await;
         }
+
+        if let Some(username) = telegram_username {
+            let token = match &self.bot_token {
+                Some(t) if !t.is_empty() => t,
+                _ => return Ok(()),
+            };
+            let url = format!("https://api.telegram.org/bot{}/sendMessage", token);
+            let clean_username = username.trim_start_matches('@');
+            let response = self
+                .client
+                .post(&url)
+                .json(&json!({
+                    "chat_id": format!("@{}", clean_username),
+                    "text": message
+                }))
+                .send()
+                .await
+                .map_err(|e| format!("Telegram API request failed: {}", e))?;
+
+            if !response.status().is_success() {
+                let error_text = response.text().await.unwrap_or_default();
+                tracing::warn!(
+                    "Telegram API error for @{}: {}",
+                    clean_username,
+                    error_text
+                );
+            }
+        }
+
+        Ok(())
     }
 }

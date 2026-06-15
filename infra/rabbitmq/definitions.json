@@ -1,0 +1,93 @@
+{
+  "rabbit_version": "3.13.0",
+  "rabbitmq_version": "3.13.0",
+  "users": [],
+  "vhosts": [{ "name": "rimskiy" }],
+  "permissions": [],
+  "parameters": [],
+  "policies": [
+    {
+      "vhost": "rimskiy",
+      "name": "notifications-dlq-policy",
+      "pattern": "^notifications$",
+      "apply-to": "queues",
+      "definition": {
+        "dead-letter-exchange": "rimskiy.dlx",
+        "dead-letter-routing-key": "notifications.dlq"
+      },
+      "priority": 0
+    }
+  ],
+  "queues": [
+    {
+      "name": "notifications",
+      "vhost": "rimskiy",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "rimskiy.dlx",
+        "x-dead-letter-routing-key": "notifications.dlq"
+      }
+    },
+    {
+      "name": "notifications.sms",
+      "vhost": "rimskiy",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "notifications.dlq",
+      "vhost": "rimskiy",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "rimskiy.events",
+      "vhost": "rimskiy",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "rimskiy.dlx",
+      "vhost": "rimskiy",
+      "type": "direct",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "bindings": [
+    {
+      "source": "rimskiy.events",
+      "vhost": "rimskiy",
+      "destination": "notifications",
+      "destination_type": "queue",
+      "routing_key": "notification.#",
+      "arguments": {}
+    },
+    {
+      "source": "rimskiy.events",
+      "vhost": "rimskiy",
+      "destination": "notifications.sms",
+      "destination_type": "queue",
+      "routing_key": "notification.sms",
+      "arguments": {}
+    },
+    {
+      "source": "rimskiy.dlx",
+      "vhost": "rimskiy",
+      "destination": "notifications.dlq",
+      "destination_type": "queue",
+      "routing_key": "notifications.dlq",
+      "arguments": {}
+    }
+  ]
+}

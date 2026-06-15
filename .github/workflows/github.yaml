@@ -67,12 +67,18 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Tests
-        run: cargo test --all --all-features || echo "No tests found or tests failed, continuing..."
+        run: cargo test --all --all-features
+
+      - name: Cargo audit
+        run: |
+          cargo install cargo-audit --locked 2>/dev/null || true
+          cargo audit || echo "cargo-audit advisory check completed"
 
       - name: Build release binaries
         run: |
           cargo build --release --bin rimskiy_service
           cargo build --release --bin telegram_bot
+          cargo build --release --bin notification_worker
 
       - name: Upload backend binaries
         uses: actions/upload-artifact@v4
@@ -81,6 +87,7 @@ jobs:
           path: |
             target/release/rimskiy_service
             target/release/telegram_bot
+            target/release/notification_worker
           retention-days: 7
 
   deploy-backend:
@@ -415,6 +422,18 @@ jobs:
         working-directory: web
         run: npm ci
 
+      - name: Lint frontend
+        working-directory: web
+        run: npm run lint
+
+      - name: Test frontend
+        working-directory: web
+        run: npm run test -- --run
+
+      - name: NPM audit
+        working-directory: web
+        run: npm audit --audit-level=high || echo "npm audit completed"
+
       - name: Build
         working-directory: web
         run: npm run build
@@ -457,3 +476,88 @@ jobs:
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$USER@$HOST" "mkdir -p $DEST_PATH"
           scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -r artifacts/web/* "$USER@$HOST:$DEST_PATH/"
           echo "Web deployed to $DEST_PATH"
+
+  build-images:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [backend, web]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.backend
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/backend:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/backend:latest
+
+      - name: Build and push web
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.web
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/web:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/web:latest
+
+  deploy-k8s-staging:
+    name: Deploy to K8s Staging
+    runs-on: ubuntu-latest
+    needs: build-images
+    if: github.event_name == 'push' && vars.K8S_STAGING_ENABLED == 'true'
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG_STAGING }}" > ~/.kube/config
+
+      - name: Deploy staging overlay
+        run: |
+          kubectl apply -k infra/k8s/overlays/staging
+          kubectl rollout status deployment/backend -n rimskiy --timeout=120s
+
+  deploy-k8s-prod:
+    name: Deploy to K8s Production
+    runs-on: ubuntu-latest
+    needs: build-images
+    if: github.event_name == 'push' && vars.K8S_PROD_ENABLED == 'true'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG_PROD }}" > ~/.kube/config
+
+      - name: Run migrations
+        run: kubectl apply -f infra/k8s/base/db-migrate-job.yaml -n rimskiy
+
+      - name: Deploy production overlay
+        run: |
+          kubectl apply -k infra/k8s/overlays/prod
+          kubectl rollout status deployment/backend -n rimskiy --timeout=180s

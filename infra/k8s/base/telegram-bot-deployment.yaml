@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telegram-bot
+  namespace: rimskiy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: telegram-bot
+  template:
+    metadata:
+      labels:
+        app: telegram-bot
+    spec:
+      containers:
+        - name: telegram-bot
+          image: ghcr.io/rimskiy/backend:latest
+          command: ["/app/telegram_bot"]
+          envFrom:
+            - secretRef:
+                name: rimskiy-secrets
+            - configMapRef:
+                name: rimskiy-config
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi

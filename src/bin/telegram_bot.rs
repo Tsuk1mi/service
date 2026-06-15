@@ -1,5 +1,5 @@
 use anyhow::Context;
-use axum::{extract::State, http::StatusCode, response::Json, routing::post, Router};
+use axum::{extract::State, http::{HeaderMap, StatusCode}, response::Json, routing::post, Router};
 use rimskiy_service::auth::sms::SmsService;
 use rimskiy_service::config::Config;
 use rimskiy_service::db::pool::create_pool;
@@ -7,8 +7,8 @@ use rimskiy_service::repository::{
     PostgresTelegramBotRepository, PostgresUserRepository, TelegramBotRepository, UserRepository,
 };
 use rimskiy_service::service::validation_service::ValidationService;
+use rimskiy_service::utils::phone::phone_hash;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use teloxide::prelude::*;
 use teloxide::utils::command::BotCommands;
@@ -48,16 +48,12 @@ struct BotState {
     http_client: reqwest::Client,
     api_base_url: String,
     web_app_url: Option<String>,
+    internal_api_token: Option<String>,
     bot: Bot,
     telegram_bot_repository: Arc<PostgresTelegramBotRepository>,
     user_repository: Arc<PostgresUserRepository>,
 }
 
-fn phone_hash(phone: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(phone.as_bytes());
-    format!("{:x}", hasher.finalize())
-}
 
 fn load_bot_config() -> anyhow::Result<BotConfig> {
     let sms_code_expiration_minutes = std::env::var("SMS_CODE_EXPIRATION_MINUTES")
@@ -236,29 +232,37 @@ async fn main() -> anyhow::Result<()> {
     let telegram_bot_repository = Arc::new(PostgresTelegramBotRepository::new(db_pool.clone()));
     let user_repository = Arc::new(PostgresUserRepository::new(db_pool));
 
-    // Загружаем конфигурацию для бота
+    // Загружаем полную конфигурацию и подключаем Redis для общего OTP store
+    let app_config = Config::from_env()?;
+
+    let redis = if let Some(ref url) = app_config.redis_url {
+        match rimskiy_service::redis::RedisClient::connect(url).await {
+            Ok(client) => {
+                tracing::info!("Connected to Redis for OTP");
+                Some(client)
+            }
+            Err(e) => {
+                if app_config.app_env.is_production() {
+                    anyhow::bail!("Redis is required in production: {}", e);
+                }
+                tracing::warn!("Redis unavailable, using in-memory OTP: {:?}", e);
+                None
+            }
+        }
+    } else {
+        if app_config.app_env.is_production() {
+            anyhow::bail!("REDIS_URL is required in production");
+        }
+        None
+    };
+
     let config = Arc::new(load_bot_config()?);
 
-    // Создаём SMS сервис (используем минимальную конфигурацию)
-    let sms_config = Config {
-        database_url: String::new(), // Не используется ботом
-        jwt_secret: String::new(),   // Не используется ботом
-        jwt_expiration_minutes: 0,   // Не используется ботом
-        encryption_key: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-            .to_string(), // Не используется ботом, но требуется для создания SmsService
-        server_host: config.server_host.clone(),
-        server_port: config.server_port,
-        migrations_path: String::new(), // Не используется ботом
-        sms_code_expiration_minutes: config.sms_code_expiration_minutes,
-        sms_code_length: config.sms_code_length,
-        return_sms_code_in_response: config.return_sms_code_in_response,
-        sms_api_url: config.sms_api_url.clone(),
-        sms_api_key: config.sms_api_key.clone(),
-        fcm_server_key: None,
-        web_app_url: config.web_app_url.clone(),
-        telegram_bot_http_url: None,
-    };
-    let sms_service = Arc::new(SmsService::new(sms_config));
+    let sms_service = Arc::new(if let Some(ref redis_client) = redis {
+        SmsService::with_redis(app_config.clone(), redis_client.clone())
+    } else {
+        SmsService::new(app_config.clone())
+    });
 
     // Получаем базовый URL API сервера
     let api_base_url = std::env::var("API_BASE_URL")
@@ -278,6 +282,7 @@ async fn main() -> anyhow::Result<()> {
         http_client: reqwest::Client::new(),
         api_base_url,
         web_app_url,
+        internal_api_token: app_config.internal_api_token.clone(),
         bot: bot.clone(),
         telegram_bot_repository: telegram_bot_repository.clone(),
         user_repository: user_repository.clone(),
@@ -945,8 +950,19 @@ struct SendCodeRequest {
 
 async fn send_code_handler(
     State(state): State<Arc<BotState>>,
+    headers: HeaderMap,
     Json(payload): Json<SendCodeRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
+    if let Some(ref expected) = state.internal_api_token {
+        let provided = headers
+            .get("X-Internal-Token")
+            .and_then(|v| v.to_str().ok());
+        if provided != Some(expected.as_str()) {
+            tracing::warn!("Rejected /send_code: invalid or missing X-Internal-Token");
+            return Err(StatusCode::UNAUTHORIZED);
+        }
+    }
+
     tracing::info!(
         "🔔 Получен запрос на отправку кода для {} (код: {})",
         payload.phone,

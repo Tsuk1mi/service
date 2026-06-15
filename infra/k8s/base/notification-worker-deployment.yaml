@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-worker
+  namespace: rimskiy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-worker
+  template:
+    metadata:
+      labels:
+        app: notification-worker
+    spec:
+      containers:
+        - name: worker
+          image: ghcr.io/rimskiy/notification-worker:latest
+          command: ["/app/notification_worker"]
+          envFrom:
+            - secretRef:
+                name: rimskiy-secrets
+            - configMapRef:
+                name: rimskiy-config
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi

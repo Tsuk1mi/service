@@ -1,52 +1,68 @@
 use crate::error::{AppError, AppResult};
+use crate::metrics;
+use crate::queue::{EventPublisher, NotificationEvent};
 use crate::models::block::{Block, BlockWithBlockerInfo, CheckBlockResponse, CreateBlockRequest};
 use crate::repository::{
-    BlockRepository, CreateNotificationData, NotificationRepository, UserPlateRepository,
-    UserRepository,
+    BlockRepository, CreateNotificationData, NotificationRepository, TelegramBotRepository,
+    UserPlateRepository, UserRepository,
 };
 use crate::service::{
-    telegram_service::TelegramService, telephony_service::TelephonyService,
-    validation_service::ValidationService,
+    telephony_service::TelephonyService, validation_service::ValidationService,
 };
 use crate::utils::encryption::Encryption;
+use std::sync::Arc;
 use uuid::Uuid;
+
+/// Контекст зависимостей для уведомлений при операциях с блокировками
+pub struct NotificationContext<'a, BR, NR, UR, UPR, TBR> {
+    pub block_repository: &'a BR,
+    pub notification_repository: &'a NR,
+    pub user_repository: &'a UR,
+    pub user_plate_repository: &'a UPR,
+    pub telegram_bot_repository: &'a TBR,
+    pub telephony_service: &'a TelephonyService,
+    pub event_publisher: &'a Arc<dyn EventPublisher>,
+}
+
+/// Контекст для push-уведомлений при разблокировке
+pub struct BlockNotificationContext<'a, NR, UR, UPR> {
+    pub notification_repository: &'a NR,
+    pub user_repository: &'a UR,
+    pub user_plate_repository: &'a UPR,
+    pub event_publisher: &'a Arc<dyn EventPublisher>,
+}
 
 /// Сервис работы с блокировками (SRP)
 #[derive(Clone)]
 pub struct BlockService {
     encryption: Encryption,
-    push_service: crate::service::push_service::PushService,
 }
 
 impl BlockService {
-    pub fn new(
-        encryption: Encryption,
-        push_service: crate::service::push_service::PushService,
-    ) -> Self {
-        Self {
-            encryption,
-            push_service,
-        }
+    pub fn new(encryption: Encryption) -> Self {
+        Self { encryption }
     }
 
     /// Создаёт новую блокировку
-    #[allow(clippy::too_many_arguments)]
     pub async fn create_block<
         BR: BlockRepository,
         NR: NotificationRepository,
         UR: UserRepository,
         UPR: UserPlateRepository,
+        TBR: TelegramBotRepository,
     >(
         &self,
         blocker_id: Uuid,
         mut request: CreateBlockRequest,
-        block_repository: &BR,
-        notification_repository: &NR,
-        user_repository: &UR,
-        user_plate_repository: &UPR,
-        telephony_service: &TelephonyService,
-        telegram_service: &TelegramService,
+        ctx: &NotificationContext<'_, BR, NR, UR, UPR, TBR>,
     ) -> AppResult<Block> {
+        let block_repository = ctx.block_repository;
+        let notification_repository = ctx.notification_repository;
+        let user_repository = ctx.user_repository;
+        let user_plate_repository = ctx.user_plate_repository;
+        let telephony_service = ctx.telephony_service;
+        let telegram_bot_repository = ctx.telegram_bot_repository;
+        let event_publisher = ctx.event_publisher;
         // Нормализация и валидация
         request.normalize();
         let normalized_plate =
@@ -230,56 +246,51 @@ impl BlockService {
                         .unwrap_or("android_push");
 
                     if notification_method == "telegram" {
-                        // Отправка через Telegram
                         if let Some(owner_user) = owner_user.as_ref() {
-                            if let Some(telegram_username) = owner_user.telegram.as_ref() {
-                                let telegram_service_clone = telegram_service.clone();
-                                let telegram_username_clone = telegram_username.clone();
-                                let normalized_plate_clone = normalized_plate.clone();
-                                let blocker_name_clone = blocker_name.to_string();
-
-                                tokio::spawn(async move {
-                                    if let Err(e) = telegram_service_clone
-                                        .send_block_notification(
-                                            &telegram_username_clone,
-                                            &normalized_plate_clone,
-                                            &blocker_name_clone,
-                                        )
-                                        .await
-                                    {
-                                        tracing::warn!(
-                                            "Failed to send Telegram notification: {}",
-                                            e
-                                        );
-                                    }
-                                });
+                            let chat_id = if let Some(ref ph) = owner_user.phone_hash {
+                                telegram_bot_repository
+                                    .find_by_phone_hash(ph)
+                                    .await
+                                    .ok()
+                                    .flatten()
+                                    .map(|u| u.chat_id)
                             } else {
-                                tracing::warn!(
-                                    "User {} has no Telegram username for notification",
-                                    user_id
-                                );
+                                None
+                            };
+
+                            let message = format!(
+                                "Ваш автомобиль {} заблокирован пользователем {}",
+                                normalized_plate, blocker_name
+                            );
+                            let event = NotificationEvent {
+                                event_type: "telegram".into(),
+                                chat_id,
+                                telegram_username: owner_user.telegram.clone(),
+                                push_token: None,
+                                phone: None,
+                                message,
+                                title: None,
+                            };
+                            if let Err(e) = event_publisher.publish_notification(event).await {
+                                tracing::warn!("Failed to publish telegram notification: {:?}", e);
                             }
                         }
-                    } else {
-                        // Отправка через Android Push (по умолчанию)
-                        if let Some(owner_user) = owner_user.as_ref() {
-                            if let Some(push_token) = owner_user.push_token.clone() {
-                                let title = "Ваш авто заблокирован";
-                                let body =
-                                    format!("{} перекрыл {}.", blocker_name, normalized_plate);
-                                let data = serde_json::json!({
-                                    "block_id": block.id.to_string(),
-                                    "blocked_plate": normalized_plate,
-                                    "blocker_name": blocker_name,
-                                });
-                                let push = self.push_service.clone();
-                                tokio::spawn(async move {
-                                    if let Err(e) =
-                                        push.send_fcm(&push_token, title, &body, data).await
-                                    {
-                                        tracing::warn!("Failed to send FCM push: {}", e);
-                                    }
-                                });
+                    } else if let Some(owner_user) = owner_user.as_ref() {
+                        if let Some(push_token) = owner_user.push_token.clone() {
+                            let title = "Ваш авто заблокирован";
+                            let body =
+                                format!("{} перекрыл {}.", blocker_name, normalized_plate);
+                            let event = NotificationEvent {
+                                event_type: "push".into(),
+                                chat_id: None,
+                                telegram_username: None,
+                                push_token: Some(push_token),
+                                phone: None,
+                                message: body,
+                                title: Some(title.to_string()),
+                            };
+                            if let Err(e) = event_publisher.publish_notification(event).await {
+                                tracing::warn!("Failed to publish push notification: {:?}", e);
                             }
                         }
                     }
@@ -333,6 +344,7 @@ impl BlockService {
             }
         }
 
+        metrics::record_block_created();
         Ok(block)
     }
 
@@ -451,10 +463,12 @@ impl BlockService {
         block_id: Uuid,
         blocker_id: Uuid,
         block_repository: &BR,
-        notification_repository: &NR,
-        user_repository: &UR,
-        user_plate_repository: &UPR,
+        notify: &BlockNotificationContext<'_, NR, UR, UPR>,
     ) -> AppResult<()> {
+        let notification_repository = notify.notification_repository;
+        let user_repository = notify.user_repository;
+        let user_plate_repository = notify.user_plate_repository;
+        let event_publisher = notify.event_publisher;
         // Проверяем, что блокировка существует
         let block = block_repository
             .find_by_id(block_id)
@@ -534,18 +548,18 @@ impl BlockService {
                         let title = "Ваш авто разблокирован";
                         let body =
                             format!("{} больше не перекрывает {}.", blocker_name, blocked_plate);
-                        let data = serde_json::json!({
-                            "block_id": block_id.to_string(),
-                            "blocked_plate": blocked_plate,
-                            "blocker_name": blocker_name,
-                            "status": "unblocked"
-                        });
-                        let push = self.push_service.clone();
-                        tokio::spawn(async move {
-                            if let Err(e) = push.send_fcm(&push_token, title, &body, data).await {
-                                tracing::warn!("Failed to send FCM push (unblock): {}", e);
-                            }
-                        });
+                        let event = NotificationEvent {
+                            event_type: "push".into(),
+                            chat_id: None,
+                            telegram_username: None,
+                            push_token: Some(push_token),
+                            phone: None,
+                            message: body,
+                            title: Some(title.to_string()),
+                        };
+                        if let Err(e) = event_publisher.publish_notification(event).await {
+                            tracing::warn!("Failed to publish unblock push: {:?}", e);
+                        }
                     }
                 }
             }

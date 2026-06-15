@@ -16,6 +16,7 @@ export interface AuthVerifyRequest {
 
 export interface AuthVerifyResponse {
   token: string;
+  refresh_token: string;
   user_id: string;
 }
 
@@ -25,6 +26,7 @@ export interface RefreshTokenRequest {
 
 export interface RefreshTokenResponse {
   token: string;
+  refresh_token: string;
   user_id: string;
 }
 

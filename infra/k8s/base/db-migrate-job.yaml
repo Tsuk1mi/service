@@ -1,0 +1,22 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-migrate
+  namespace: rimskiy
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migrate
+          image: ghcr.io/rimskiy/backend:latest
+          command: ["/app/rimskiy_service"]
+          env:
+            - name: RUN_MIGRATIONS_ONLY
+              value: "true"
+          envFrom:
+            - secretRef:
+                name: rimskiy-secrets
+            - configMapRef:
+                name: rimskiy-config

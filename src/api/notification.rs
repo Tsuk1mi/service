@@ -24,7 +24,21 @@ pub struct GetNotificationsQuery {
     pub unread_only: Option<bool>,
 }
 
-async fn get_notifications(
+/// Список уведомлений пользователя
+#[utoipa::path(
+    get,
+    path = "/api/notifications",
+    params(
+        ("unread_only" = Option<bool>, Query, description = "Только непрочитанные")
+    ),
+    responses(
+        (status = 200, description = "Список уведомлений", body = Vec<NotificationResponse>),
+        (status = 401, description = "Не авторизован"),
+    ),
+    security(("bearer_token" = [])),
+    tag = "notifications"
+)]
+pub async fn get_notifications(
     State(state): State<AppState>,
     Extension(auth_state): Extension<AuthState>,
     Query(params): Query<GetNotificationsQuery>,
@@ -53,7 +67,19 @@ async fn get_notifications(
     Ok(Json(responses))
 }
 
-async fn mark_notification_read(
+/// Отметить уведомление прочитанным
+#[utoipa::path(
+    patch,
+    path = "/api/notifications/{id}/read",
+    params(("id" = Uuid, Path, description = "ID уведомления")),
+    responses(
+        (status = 200, description = "Уведомление отмечено"),
+        (status = 401, description = "Не авторизован"),
+    ),
+    security(("bearer_token" = [])),
+    tag = "notifications"
+)]
+pub async fn mark_notification_read(
     State(state): State<AppState>,
     Extension(auth_state): Extension<AuthState>,
     Path(notification_id): Path<Uuid>,
@@ -70,7 +96,18 @@ async fn mark_notification_read(
     ))
 }
 
-async fn mark_all_read(
+/// Отметить все уведомления прочитанными
+#[utoipa::path(
+    patch,
+    path = "/api/notifications/read-all",
+    responses(
+        (status = 200, description = "Все уведомления отмечены"),
+        (status = 401, description = "Не авторизован"),
+    ),
+    security(("bearer_token" = [])),
+    tag = "notifications"
+)]
+pub async fn mark_all_read(
     State(state): State<AppState>,
     Extension(auth_state): Extension<AuthState>,
 ) -> AppResult<Json<serde_json::Value>> {

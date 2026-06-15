@@ -2,7 +2,7 @@ import {
   clearStoredToken,
   formatAuthHeader,
   getStoredToken,
-  setStoredToken,
+  setStoredTokens,
 } from '../auth/storage';
 import { checkResponse } from './errors';
 import type {
@@ -18,7 +18,6 @@ import type {
   NotificationResponse,
   PublicUserInfo,
   RecognizePlateResponse,
-  RefreshTokenRequest,
   RefreshTokenResponse,
   ServerInfoResponse,
   UpdateUserRequest,
@@ -31,6 +30,8 @@ const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 function url(path: string): string {
   return `${BASE_URL}${path}`;
 }
+
+const fetchOpts: RequestInit = { credentials: 'include' };
 
 async function request(
   path: string,
@@ -47,13 +48,13 @@ async function request(
     headers.set('Content-Type', 'application/json');
   }
 
-  const response = await fetch(url(path), { ...init, headers });
+  const response = await fetch(url(path), { ...fetchOpts, ...init, headers });
 
   if (response.status === 401 && token) {
     const refreshed = await tryRefreshToken();
     if (refreshed) {
       headers.set('Authorization', formatAuthHeader(refreshed));
-      return fetch(url(path), { ...init, headers });
+      return fetch(url(path), { ...fetchOpts, ...init, headers });
     }
     clearStoredToken();
     window.location.href = '/login';
@@ -63,19 +64,16 @@ async function request(
 }
 
 async function tryRefreshToken(): Promise<string | null> {
-  const current = getStoredToken();
-  if (!current) return null;
-
   try {
-    const body: RefreshTokenRequest = { token: current.replace(/^Bearer\s+/i, '') };
     const response = await fetch(url('/api/auth/refresh'), {
+      ...fetchOpts,
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ token: '' }),
     });
     if (!response.ok) return null;
     const data = (await response.json()) as RefreshTokenResponse;
-    setStoredToken(data.token);
+    setStoredTokens(data.token, data.refresh_token);
     return data.token;
   } catch {
     return null;
@@ -110,16 +108,27 @@ export const api = {
       body: JSON.stringify(body),
     });
     await checkResponse(response);
-    return response.json();
+    const data = (await response.json()) as AuthVerifyResponse;
+    setStoredTokens(data.token, data.refresh_token);
+    return data;
   },
 
-  refreshToken: async (body: RefreshTokenRequest): Promise<RefreshTokenResponse> => {
+  refreshToken: async (): Promise<RefreshTokenResponse> => {
     const response = await request('/api/auth/refresh', {
       method: 'POST',
-      body: JSON.stringify(body),
+      body: JSON.stringify({ token: '' }),
     });
     await checkResponse(response);
     return response.json();
+  },
+
+  logout: async (): Promise<void> => {
+    const response = await request('/api/auth/logout', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+    await checkResponse(response);
+    clearStoredToken();
   },
 
   getProfile: async (): Promise<UserResponse> => {

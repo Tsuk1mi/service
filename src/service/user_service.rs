@@ -2,8 +2,8 @@ use crate::error::{AppError, AppResult};
 use crate::models::user::{UpdateUserRequest, UserResponse};
 use crate::repository::{UpdateUserData, UserPlateRepository, UserRepository};
 use crate::service::validation_service::ValidationService;
+use crate::utils::phone::phone_hash;
 use crate::utils::encryption::Encryption;
-use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 /// Сервис для работы с профилями пользователей
@@ -17,11 +17,6 @@ impl UserService {
         Self { encryption }
     }
 
-    fn phone_hash(phone: &str) -> String {
-        let mut hasher = Sha256::new();
-        hasher.update(phone.as_bytes());
-        format!("{:x}", hasher.finalize())
-    }
 
     /// Получает профиль пользователя
     pub async fn get_profile<R: UserRepository, RP: UserPlateRepository>(
@@ -190,7 +185,7 @@ impl UserService {
                 .encryption
                 .encrypt(&phone)
                 .map_err(|e| AppError::Encryption(e.to_string()))?;
-            let hash = Self::phone_hash(&phone);
+            let hash = phone_hash(&phone);
             (Some(enc), Some(hash))
         } else {
             (None, None)

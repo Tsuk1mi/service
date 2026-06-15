@@ -24,7 +24,19 @@ pub fn user_plate_router() -> Router<AppState> {
         .route("/:id", delete(delete_user_plate))
 }
 
-async fn create_user_plate(
+/// Добавить автомобиль пользователя
+#[utoipa::path(
+    post,
+    path = "/api/user/plates",
+    request_body = CreateUserPlateRequest,
+    responses(
+        (status = 200, description = "Автомобиль добавлен", body = UserPlateResponse),
+        (status = 401, description = "Не авторизован"),
+    ),
+    security(("bearer_token" = [])),
+    tag = "user_plates"
+)]
+pub async fn create_user_plate(
     State(state): State<AppState>,
     Extension(auth_state): Extension<AuthState>,
     Json(mut payload): Json<CreateUserPlateRequest>,
@@ -69,7 +81,18 @@ async fn create_user_plate(
     Ok(Json(user_plate.to_response()))
 }
 
-async fn get_user_plates(
+/// Список автомобилей пользователя
+#[utoipa::path(
+    get,
+    path = "/api/user/plates",
+    responses(
+        (status = 200, description = "Список автомобилей", body = Vec<UserPlateResponse>),
+        (status = 401, description = "Не авторизован"),
+    ),
+    security(("bearer_token" = [])),
+    tag = "user_plates"
+)]
+pub async fn get_user_plates(
     State(state): State<AppState>,
     Extension(auth_state): Extension<AuthState>,
 ) -> AppResult<Json<Vec<UserPlateResponse>>> {

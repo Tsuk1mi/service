@@ -91,6 +91,38 @@ openssl rand -hex 32
 -join ((48..57) + (97..102) | Get-Random -Count 64 | ForEach-Object {[char]$_})
 ```
 
+## Архитектура сервисов (Docker / K8s)
+
+| Сервис | Назначение |
+|--------|------------|
+| `backend` | REST API (Axum), auth, blocks, OCR |
+| `web` | React SPA (nginx) |
+| `telegram-bot` | Telegram + HTTP `/send_code` |
+| `notification-worker` | RabbitMQ → Telegram/FCM/SMS |
+| `db` | PostgreSQL |
+| `redis` | OTP, rate limit, JWT blacklist |
+| `rabbitmq` | Async notifications + DLQ |
+
+Observability (profile `obs`): Prometheus, Grafana, Loki, Promtail, Alertmanager.
+
+## Kubernetes
+
+Манифесты: [`infra/k8s/`](infra/k8s/)
+
+```bash
+# Staging
+kubectl apply -k infra/k8s/overlays/staging
+
+# Production (manual approval в CI)
+kubectl apply -k infra/k8s/overlays/prod
+```
+
+Перед деплоем создайте Secret из [`infra/k8s/base/secret.yaml.example`](infra/k8s/base/secret.yaml.example).
+
+CI: push в `main` → build images → GHCR → deploy staging (если `K8S_STAGING_ENABLED=true`).
+
+Runbooks: [`docs/runbooks/`](docs/runbooks/)
+
 ## CI/CD (GitHub Actions)
 
 ### Variables

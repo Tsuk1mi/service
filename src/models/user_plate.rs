@@ -2,6 +2,7 @@ use chrono::NaiveTime;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -18,7 +19,7 @@ pub struct UserPlate {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct CreateUserPlateRequest {
     #[validate(length(
         min = 8,
@@ -39,7 +40,7 @@ pub struct UpdateUserPlateRequest {
     pub departure_time: Option<Option<String>>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct UserPlateResponse {
     pub id: String,
     pub user_id: String,

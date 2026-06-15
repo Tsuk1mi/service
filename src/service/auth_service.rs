@@ -1,14 +1,18 @@
-use crate::auth::jwt::create_token;
+use crate::auth::jwt::{create_token_pair, decode_token_ignore_exp, verify_refresh_token, TokenType};
 use crate::auth::sms::SmsService;
 use crate::config::Config;
 use crate::error::{AppError, AppResult};
+use crate::metrics;
 use crate::models::auth::{AuthStartResponse, AuthVerifyResponse, RefreshTokenResponse};
+use crate::queue::EventPublisher;
+use crate::redis::JwtBlacklist;
 use crate::repository::{CreateUserData, UserPlateRepository, UserRepository};
 use crate::service::validation_service::ValidationService;
 use crate::utils::encryption::Encryption;
+use crate::utils::phone::phone_hash;
 use reqwest::Client;
 use serde_json::json;
-use sha2::{Digest, Sha256};
+use std::sync::Arc;
 use uuid::Uuid;
 
 /// Сервис авторизации (SRP - Single Responsibility Principle)
@@ -18,15 +22,25 @@ pub struct AuthService {
     encryption: Encryption,
     config: Config,
     http_client: Client,
+    event_publisher: Arc<dyn EventPublisher>,
+    jwt_blacklist: Option<JwtBlacklist>,
 }
 
 impl AuthService {
-    pub fn new(sms_service: SmsService, encryption: Encryption, config: Config) -> Self {
+    pub fn new(
+        sms_service: SmsService,
+        encryption: Encryption,
+        config: Config,
+        event_publisher: Arc<dyn EventPublisher>,
+        jwt_blacklist: Option<JwtBlacklist>,
+    ) -> Self {
         Self {
             sms_service,
             encryption,
             config: config.clone(),
             http_client: Client::new(),
+            event_publisher,
+            jwt_blacklist,
         }
     }
 
@@ -46,7 +60,12 @@ impl AuthService {
             "code": code
         });
 
-        match self.http_client.post(&bot_url).json(&payload).send().await {
+        let mut request = self.http_client.post(&bot_url).json(&payload);
+        if let Some(ref token) = self.config.internal_api_token {
+            request = request.header("X-Internal-Token", token);
+        }
+
+        match request.send().await {
             Ok(response) => {
                 if response.status().is_success() {
                     tracing::info!("Код отправлен в Telegram бот для {}", phone);
@@ -66,24 +85,27 @@ impl AuthService {
         }
     }
 
-    fn phone_hash(phone: &str) -> String {
-        let mut hasher = Sha256::new();
-        hasher.update(phone.as_bytes());
-        format!("{:x}", hasher.finalize())
-    }
 
     /// Начинает процесс авторизации
     pub async fn start_auth(&self, phone: &str) -> AppResult<AuthStartResponse> {
         let normalized_phone = ValidationService::validate_phone(phone)?;
 
-        // Генерируем код
-        let code = self.sms_service.generate_code(&normalized_phone).await
+        self.sms_service.check_rate_limit(&normalized_phone).await?;
+
+        let code = self
+            .sms_service
+            .generate_code(&normalized_phone)
+            .await
             .map_err(|e| {
-                tracing::error!("Failed to generate/send SMS code for {}: {}", normalized_phone, e);
-                AppError::Internal(format!(
-                    "Не удалось отправить SMS код. {}. Для разработки установите RETURN_SMS_CODE_IN_RESPONSE=true", e
-                ))
+                tracing::error!(
+                    "Failed to generate OTP for {}: {:?}",
+                    normalized_phone,
+                    e
+                );
+                e
             })?;
+
+        metrics::record_otp_sent();
 
         // Отправляем код в Telegram бот (если настроен)
         if let Err(e) = self.send_code_to_telegram(&normalized_phone, &code).await {
@@ -91,7 +113,7 @@ impl AuthService {
             // Не прерываем процесс, если не удалось отправить в Telegram
         }
 
-        // Отправляем SMS через внешний провайдер, если настроен
+        // Отправляем SMS через внешний провайдер или очередь
         if let Some(sms_url) = &self.config.sms_api_url {
             if let Err(e) = Self::send_sms_via_provider(
                 sms_url,
@@ -101,9 +123,14 @@ impl AuthService {
             )
             .await
             {
-                // Не валим запрос, но логируем
                 tracing::warn!("Не удалось отправить SMS через провайдера: {}", e);
             }
+        } else if let Err(e) = self
+            .event_publisher
+            .publish_sms(&normalized_phone, &code)
+            .await
+        {
+            tracing::warn!("Не удалось поставить SMS в очередь: {:?}", e);
         }
 
         let expires_in = (self.config.sms_code_expiration_minutes * 60) as u64;
@@ -190,13 +217,12 @@ impl AuthService {
     ) -> AppResult<AuthVerifyResponse> {
         let normalized_phone = ValidationService::validate_phone(phone)?;
 
-        // Проверяем код
-        if !self.sms_service.verify_code(&normalized_phone, code).await {
+        if !self.sms_service.verify_code(&normalized_phone, code).await? {
             return Err(AppError::Auth("Неверный код подтверждения".to_string()));
         }
 
         // Хэш и шифруем телефон
-        let phone_hash = Self::phone_hash(&normalized_phone);
+        let phone_hash = phone_hash(&normalized_phone);
         let phone_encrypted = self
             .encryption
             .encrypt(&normalized_phone)
@@ -308,67 +334,69 @@ impl AuthService {
             }
         };
 
-        // Удаляем использованный код
-        self.sms_service.remove_code(&normalized_phone).await;
+        self.sms_service.remove_code(&normalized_phone).await?;
 
-        // Создаём токен
-        let token = create_token(user.id, &self.config)?;
+        let tokens = create_token_pair(user.id, &self.config)?;
 
         Ok(AuthVerifyResponse {
-            token,
+            token: tokens.access_token,
+            refresh_token: tokens.refresh_token,
             user_id: user.id,
         })
     }
 
-    /// Обновляет токен, если он еще действителен или истек недавно (в течение 30 минут)
+    /// Обновляет access token по refresh token
     pub async fn refresh_token(&self, token: &str) -> AppResult<RefreshTokenResponse> {
-        use jsonwebtoken::{decode, DecodingKey, Validation};
-        use serde_json::Value;
+        let claims = verify_refresh_token(token, &self.config)?;
 
-        // Декодируем токен без проверки времени истечения
-        let key = DecodingKey::from_secret(self.config.jwt_secret.as_ref());
-        let mut validation = Validation::default();
-        validation.validate_exp = false; // Отключаем проверку времени истечения
+        if let Some(ref blacklist) = self.jwt_blacklist {
+            if blacklist.is_blacklisted(&claims.jti).await? {
+                return Err(AppError::Auth("Refresh token revoked".to_string()));
+            }
+        }
 
-        let token_data = decode::<Value>(token, &key, &validation)
-            .map_err(|e| AppError::Auth(format!("Invalid token format: {}", e)))?;
-
-        // Извлекаем user_id и время создания
-        let user_id_str = token_data
-            .claims
-            .get("sub")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| AppError::Auth("Invalid token: missing user_id".to_string()))?;
-
-        let user_id = uuid::Uuid::parse_str(user_id_str)
-            .map_err(|_| AppError::Auth("Invalid token: invalid user_id format".to_string()))?;
-
-        let iat = token_data
-            .claims
-            .get("iat")
-            .and_then(|v| v.as_i64())
-            .ok_or_else(|| AppError::Auth("Invalid token: missing iat".to_string()))?;
-
-        // Проверяем, не слишком ли давно истек токен (максимум 30 минут после истечения)
-        // Это позволяет обновлять токен, если пользователь был неактивен недолго
         let now = chrono::Utc::now().timestamp();
-        let token_age = now - iat;
-        let max_age_after_expiry = 30 * 60; // 30 минут в секундах
+        let max_age_after_expiry = 30 * 60;
+        let max_total_age = (self.config.jwt_refresh_expiration_minutes * 60) + max_age_after_expiry;
+        let token_age = now - claims.iat;
 
-        // Если токен слишком старый (больше времени жизни + окно обновления), требуем повторного входа
-        let max_total_age = (self.config.jwt_expiration_minutes * 60) + max_age_after_expiry;
         if token_age > max_total_age {
             return Err(AppError::Auth(
-                "Token expired too long ago. Please login again".to_string(),
+                "Refresh token expired too long ago. Please login again".to_string(),
             ));
         }
 
-        // Создаём новый токен
-        let new_token = create_token(user_id, &self.config)?;
+        if let Some(ref blacklist) = self.jwt_blacklist {
+            let ttl = (claims.exp - now).max(0) as u64;
+            if ttl > 0 {
+                blacklist.blacklist_jti(&claims.jti, ttl).await?;
+            }
+        }
+
+        let tokens = create_token_pair(claims.sub, &self.config)?;
 
         Ok(RefreshTokenResponse {
-            token: new_token,
-            user_id,
+            token: tokens.access_token,
+            refresh_token: tokens.refresh_token,
+            user_id: claims.sub,
         })
+    }
+
+    /// Отзывает refresh token (logout)
+    pub async fn logout(&self, token: &str) -> AppResult<()> {
+        let claims = decode_token_ignore_exp(token, &self.config)?;
+        if claims.typ != TokenType::Refresh {
+            return Err(AppError::Auth("Expected refresh token".to_string()));
+        }
+
+        if let Some(ref blacklist) = self.jwt_blacklist {
+            let now = chrono::Utc::now().timestamp();
+            let ttl = (claims.exp - now).max(0) as u64;
+            if ttl > 0 {
+                blacklist.blacklist_jti(&claims.jti, ttl).await?;
+            }
+        }
+
+        Ok(())
     }
 }

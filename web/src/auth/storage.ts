@@ -1,15 +1,27 @@
-const TOKEN_KEY = 'rimskiy_token';
+let accessToken: string | null = null;
 
 export function getStoredToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+  return accessToken;
+}
+
+export function getStoredRefreshToken(): string | null {
+  return null;
 }
 
 export function setStoredToken(token: string): void {
-  localStorage.setItem(TOKEN_KEY, token);
+  accessToken = token;
+}
+
+export function setStoredRefreshToken(_token: string): void {
+  // refresh token хранится в httpOnly cookie на сервере
+}
+
+export function setStoredTokens(access: string, _refresh: string): void {
+  accessToken = access;
 }
 
 export function clearStoredToken(): void {
-  localStorage.removeItem(TOKEN_KEY);
+  accessToken = null;
 }
 
 export function formatAuthHeader(token: string): string {

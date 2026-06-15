@@ -7,7 +7,7 @@ pub mod user_service;
 pub mod validation_service;
 
 pub use auth_service::AuthService;
-pub use block_service::BlockService;
+pub use block_service::{BlockNotificationContext, BlockService, NotificationContext};
 pub use push_service::PushService;
 pub use telegram_service::TelegramService;
 pub use telephony_service::TelephonyService;

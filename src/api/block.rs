@@ -10,6 +10,8 @@ use crate::api::AppState;
 use crate::auth::middleware::AuthState;
 use crate::error::AppResult;
 use crate::models::block::{Block, BlockWithBlockerInfo, CheckBlockResponse, CreateBlockRequest};
+use crate::service::{BlockNotificationContext, NotificationContext};
+use crate::utils::validate::validate_payload;
 
 pub fn block_router() -> Router<AppState> {
     Router::new()
@@ -44,6 +46,7 @@ pub async fn create_block(
     Extension(auth_state): Extension<AuthState>,
     Json(payload): Json<CreateBlockRequest>,
 ) -> AppResult<Json<Block>> {
+    validate_payload(&payload)?;
     let blocker_id = auth_state.user_id;
 
     tracing::info!(
@@ -52,18 +55,19 @@ pub async fn create_block(
         payload.blocked_plate
     );
 
+    let notify_ctx = NotificationContext {
+        block_repository: &state.block_repository,
+        notification_repository: &state.notification_repository,
+        user_repository: &state.user_repository,
+        user_plate_repository: &state.user_plate_repository,
+        telegram_bot_repository: &state.telegram_bot_repository,
+        telephony_service: &state.telephony_service,
+        event_publisher: &state.event_publisher,
+    };
+
     let block = state
         .block_service
-        .create_block(
-            blocker_id,
-            payload,
-            &state.block_repository,
-            &state.notification_repository,
-            &state.user_repository,
-            &state.user_plate_repository,
-            &state.telephony_service,
-            &state.telegram_service,
-        )
+        .create_block(blocker_id, payload, &notify_ctx)
         .await
         .map_err(|e| {
             tracing::error!("API: Failed to create block: {:?}", e);
@@ -160,15 +164,20 @@ pub async fn delete_block(
 ) -> AppResult<Json<serde_json::Value>> {
     let blocker_id = auth_state.user_id;
 
+    let notify_ctx = BlockNotificationContext {
+        notification_repository: &state.notification_repository,
+        user_repository: &state.user_repository,
+        user_plate_repository: &state.user_plate_repository,
+        event_publisher: &state.event_publisher,
+    };
+
     state
         .block_service
         .delete_block(
             block_id,
             blocker_id,
             &state.block_repository,
-            &state.notification_repository,
-            &state.user_repository,
-            &state.user_plate_repository,
+            &notify_ctx,
         )
         .await?;
 
