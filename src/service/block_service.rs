@@ -363,7 +363,7 @@ impl BlockService {
             .await?;
 
         result.append(&mut shared);
-        result.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        result.sort_by_key(|a| std::cmp::Reverse(a.created_at));
         result.dedup_by(|a, b| a.id == b.id);
 
         Ok(result)
@@ -411,7 +411,7 @@ impl BlockService {
         }
 
         // Сортируем по дате создания (новые сначала)
-        all_blocks.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        all_blocks.sort_by_key(|a| std::cmp::Reverse(a.created_at));
 
         Ok(all_blocks)
     }

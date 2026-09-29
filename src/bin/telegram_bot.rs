@@ -37,11 +37,6 @@ enum Command {
 
 #[derive(Clone)]
 struct BotConfig {
-    sms_code_expiration_minutes: i64,
-    sms_code_length: u32,
-    return_sms_code_in_response: bool,
-    sms_api_url: Option<String>,
-    sms_api_key: Option<String>,
     server_host: String,
     server_port: u16,
     web_app_url: Option<String>,
@@ -61,20 +56,6 @@ struct BotState {
 }
 
 fn load_bot_config() -> anyhow::Result<BotConfig> {
-    let sms_code_expiration_minutes = std::env::var("SMS_CODE_EXPIRATION_MINUTES")
-        .unwrap_or_else(|_| "10".to_string())
-        .parse()
-        .context("SMS_CODE_EXPIRATION_MINUTES must be a valid number")?;
-    let sms_code_length = std::env::var("SMS_CODE_LENGTH")
-        .unwrap_or_else(|_| "4".to_string())
-        .parse()
-        .context("SMS_CODE_LENGTH must be a valid number")?;
-    let return_sms_code_in_response = std::env::var("RETURN_SMS_CODE_IN_RESPONSE")
-        .unwrap_or_else(|_| "false".to_string())
-        .parse()
-        .unwrap_or(false);
-    let sms_api_url = std::env::var("SMS_API_URL").ok();
-    let sms_api_key = std::env::var("SMS_API_KEY").ok();
     let server_host = std::env::var("SERVER_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
     let server_port = std::env::var("SERVER_PORT")
         .unwrap_or_else(|_| "8080".to_string())
@@ -83,11 +64,6 @@ fn load_bot_config() -> anyhow::Result<BotConfig> {
     let web_app_url = std::env::var("WEB_APP_URL").ok();
 
     Ok(BotConfig {
-        sms_code_expiration_minutes,
-        sms_code_length,
-        return_sms_code_in_response,
-        sms_api_url,
-        sms_api_key,
         server_host,
         server_port,
         web_app_url,

@@ -8,15 +8,19 @@ pub enum AppEnv {
 }
 
 impl AppEnv {
-    pub fn from_str(s: &str) -> Self {
-        match s.to_lowercase().as_str() {
-            "production" | "prod" => Self::Production,
-            _ => Self::Development,
-        }
-    }
-
     pub fn is_production(&self) -> bool {
         matches!(self, Self::Production)
+    }
+}
+
+impl std::str::FromStr for AppEnv {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s.to_lowercase().as_str() {
+            "production" | "prod" => Self::Production,
+            _ => Self::Development,
+        })
     }
 }
 
@@ -54,8 +58,10 @@ pub struct Config {
 
 impl Config {
     pub fn from_env() -> Result<Self> {
-        let app_env =
-            AppEnv::from_str(&env::var("APP_ENV").unwrap_or_else(|_| "development".into()));
+        let app_env = env::var("APP_ENV")
+            .unwrap_or_else(|_| "development".into())
+            .parse::<AppEnv>()
+            .unwrap_or(AppEnv::Development);
 
         let database_url = env::var("DATABASE_URL").context("DATABASE_URL is required")?;
         let redis_url = env::var("REDIS_URL").ok().filter(|s| !s.is_empty());
@@ -206,8 +212,8 @@ mod tests {
 
     #[test]
     fn app_env_parses_production() {
-        assert!(AppEnv::from_str("production").is_production());
-        assert!(AppEnv::from_str("PROD").is_production());
-        assert!(!AppEnv::from_str("development").is_production());
+        assert!("production".parse::<AppEnv>().unwrap().is_production());
+        assert!("PROD".parse::<AppEnv>().unwrap().is_production());
+        assert!(!"development".parse::<AppEnv>().unwrap().is_production());
     }
 }
