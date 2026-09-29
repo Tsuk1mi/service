@@ -113,9 +113,14 @@ export function BlockedByPage() {
             );
           })}
           {(blocksQuery.data ?? []).length === 0 && (
-            <Typography color="text.secondary" textAlign="center" py={4}>
-              Никто не блокирует ваши автомобили
-            </Typography>
+            <Box textAlign="center" py={6} px={2}>
+              <Typography variant="subtitle1" gutterBottom>
+                Никто не блокирует ваши автомобили
+              </Typography>
+              <Typography color="text.secondary" variant="body2">
+                Когда кто-то укажет ваш номер как перекрытый, здесь появятся контакты водителя.
+              </Typography>
+            </Box>
           )}
         </Stack>
       )}

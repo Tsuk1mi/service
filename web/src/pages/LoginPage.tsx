@@ -6,7 +6,6 @@ import {
   Card,
   CardContent,
   CircularProgress,
-  Link,
   Stack,
   Step,
   StepLabel,
@@ -16,11 +15,13 @@ import {
 } from '@mui/material';
 import LockIcon from '@mui/icons-material/Lock';
 import TelegramIcon from '@mui/icons-material/Telegram';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { setStoredTokens } from '../auth/storage';
 import { normalizePhone, validatePhone } from '../utils/phone';
 import { openTelegramDeeplink } from '../utils/contacts';
+import { parseIntegrations } from '../utils/integrations';
 
 const STEPS = ['Телефон', 'Telegram', 'Код'];
 
@@ -33,6 +34,17 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [telegramDeeplink, setTelegramDeeplink] = useState<string | null>(null);
   const [telegramUsername, setTelegramUsername] = useState<string | null>(null);
+
+  const { data: serverInfo } = useQuery({
+    queryKey: ['server-info'],
+    queryFn: () => api.getServerInfo(),
+    staleTime: 60_000,
+    retry: false,
+  });
+  const integrations = parseIntegrations(serverInfo);
+  const loginHint = integrations.sms
+    ? 'Вход по коду из SMS или Telegram'
+    : 'Бесплатный вход через Telegram (SMS не настроен)';
 
   const handleStartAuth = async () => {
     setError(null);
@@ -109,7 +121,7 @@ export function LoginPage() {
               Rimskiy
             </Typography>
             <Typography variant="body2" color="text.secondary" textAlign="center">
-              Бесплатный вход через Telegram
+              {loginHint}
             </Typography>
 
             <Stepper activeStep={activeStep} alternativeLabel sx={{ width: '100%' }}>

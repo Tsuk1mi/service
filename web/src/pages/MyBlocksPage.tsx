@@ -25,6 +25,7 @@ import { api } from '../api/client';
 import type { Block } from '../api/types';
 import { TimePickerDialog } from '../components/TimePickerDialog';
 import { formatDateTime } from '../utils/date';
+import { parseIntegrations } from '../utils/integrations';
 import { formatPlate, normalizePlate, validatePlate } from '../utils/plate';
 
 export function MyBlocksPage() {
@@ -43,6 +44,13 @@ export function MyBlocksPage() {
     queryKey: ['profile'],
     queryFn: () => api.getProfile(),
   });
+
+  const serverInfoQuery = useQuery({
+    queryKey: ['server-info'],
+    queryFn: () => api.getServerInfo(),
+    staleTime: 60_000,
+  });
+  const ocrAvailable = parseIntegrations(serverInfoQuery.data).ocr;
 
   const blocksQuery = useQuery({
     queryKey: ['my-blocks'],
@@ -129,13 +137,24 @@ export function MyBlocksPage() {
               onChange={(e) => setNewPlate(e.target.value.toUpperCase())}
               fullWidth
               placeholder="А123БВ777"
+              helperText={
+                ocrAvailable
+                  ? 'Введите номер вручную или распознайте с фото'
+                  : 'OCR не настроен на сервере — введите номер вручную'
+              }
             />
+            {!ocrAvailable && (
+              <Alert severity="info">
+                Распознавание номера с фото недоступно. Укажите номер вручную в поле выше.
+              </Alert>
+            )}
             <Stack direction="row" spacing={1}>
               <Button
                 variant="outlined"
                 startIcon={isRecognizing ? <CircularProgress size={18} /> : <PhotoCameraIcon />}
                 onClick={() => fileInputRef.current?.click()}
-                disabled={isRecognizing}
+                disabled={isRecognizing || !ocrAvailable}
+                title={ocrAvailable ? 'Распознать номер с фото' : 'OCR не настроен'}
               >
                 Распознать с фото
               </Button>
@@ -144,6 +163,7 @@ export function MyBlocksPage() {
                 type="file"
                 accept="image/*"
                 hidden
+                disabled={!ocrAvailable}
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) void handleOcr(file);
@@ -200,9 +220,14 @@ export function MyBlocksPage() {
             </Card>
           ))}
           {(blocksQuery.data ?? []).length === 0 && (
-            <Typography color="text.secondary" textAlign="center" py={4}>
-              Нет активных блокировок
-            </Typography>
+            <Box textAlign="center" py={6} px={2}>
+              <Typography variant="subtitle1" gutterBottom>
+                Пока нет активных блокировок
+              </Typography>
+              <Typography color="text.secondary" variant="body2">
+                Добавьте номер перекрытого автомобиля выше — вручную или через фото, если OCR доступен.
+              </Typography>
+            </Box>
           )}
         </Stack>
       )}
