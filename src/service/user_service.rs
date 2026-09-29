@@ -2,8 +2,8 @@ use crate::error::{AppError, AppResult};
 use crate::models::user::{UpdateUserRequest, UserResponse};
 use crate::repository::{UpdateUserData, UserPlateRepository, UserRepository};
 use crate::service::validation_service::ValidationService;
-use crate::utils::phone::phone_hash;
 use crate::utils::encryption::Encryption;
+use crate::utils::phone::phone_hash;
 use uuid::Uuid;
 
 /// Сервис для работы с профилями пользователей
@@ -16,7 +16,6 @@ impl UserService {
     pub fn new(encryption: Encryption) -> Self {
         Self { encryption }
     }
-
 
     /// Получает профиль пользователя
     pub async fn get_profile<R: UserRepository, RP: UserPlateRepository>(

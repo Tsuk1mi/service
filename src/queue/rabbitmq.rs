@@ -1,8 +1,6 @@
 use async_trait::async_trait;
 use lapin::{
-    options::{
-        BasicPublishOptions, ExchangeDeclareOptions, QueueBindOptions, QueueDeclareOptions,
-    },
+    options::{BasicPublishOptions, ExchangeDeclareOptions, QueueBindOptions, QueueDeclareOptions},
     types::{AMQPValue, FieldTable},
     BasicProperties, Connection, ConnectionProperties, ExchangeKind,
 };

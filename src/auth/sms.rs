@@ -105,8 +105,8 @@ impl SmsService {
             width = self.config.sms_code_length as usize
         );
 
-        let expires_at = chrono::Utc::now().timestamp()
-            + self.config.sms_code_expiration_minutes * 60;
+        let expires_at =
+            chrono::Utc::now().timestamp() + self.config.sms_code_expiration_minutes * 60;
 
         let entry = OtpEntry {
             code: code.clone(),

@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use axum::{middleware, routing::get, Router};
 use rimskiy_service::api::{
-    auth_router, block_router, health_router, notification_router, ocr_router,
-    server_info_router, user_plate_router, user_router, AppState,
+    auth_router, block_router, health_router, notification_router, ocr_router, server_info_router,
+    user_plate_router, user_router, AppState,
 };
 use rimskiy_service::auth::sms::SmsService;
 use rimskiy_service::config::Config;
@@ -85,22 +85,21 @@ async fn main() -> Result<()> {
         None
     };
 
-    let event_publisher: Arc<dyn EventPublisher> =
-        if let Some(ref url) = config.rabbitmq_url {
-            match RabbitMqPublisher::connect(url).await {
-                Ok(publisher) => {
-                    tracing::info!("Connected to RabbitMQ");
-                    Arc::new(publisher)
-                }
-                Err(e) => {
-                    tracing::warn!("RabbitMQ unavailable, using noop publisher: {:?}", e);
-                    Arc::new(NoopPublisher)
-                }
+    let event_publisher: Arc<dyn EventPublisher> = if let Some(ref url) = config.rabbitmq_url {
+        match RabbitMqPublisher::connect(url).await {
+            Ok(publisher) => {
+                tracing::info!("Connected to RabbitMQ");
+                Arc::new(publisher)
             }
-        } else {
-            tracing::info!("RABBITMQ_URL not set, using noop event publisher");
-            Arc::new(NoopPublisher)
-        };
+            Err(e) => {
+                tracing::warn!("RabbitMQ unavailable, using noop publisher: {:?}", e);
+                Arc::new(NoopPublisher)
+            }
+        }
+    } else {
+        tracing::info!("RABBITMQ_URL not set, using noop event publisher");
+        Arc::new(NoopPublisher)
+    };
 
     let encryption =
         Encryption::new(&config.encryption_key).map_err(|e| AppError::Encryption(e.to_string()))?;
@@ -181,22 +180,13 @@ async fn main() -> Result<()> {
         )
         .merge(server_info_router())
         .nest("/api/auth", auth_router())
-        .nest(
-            "/api/ocr",
-            ocr_router().layer(auth_layer.clone()),
-        )
-        .nest(
-            "/api/users",
-            user_router().layer(auth_layer.clone()),
-        )
+        .nest("/api/ocr", ocr_router().layer(auth_layer.clone()))
+        .nest("/api/users", user_router().layer(auth_layer.clone()))
         .nest(
             "/api/user/plates",
             user_plate_router().layer(auth_layer.clone()),
         )
-        .nest(
-            "/api/blocks",
-            block_router().layer(auth_layer.clone()),
-        )
+        .nest("/api/blocks", block_router().layer(auth_layer.clone()))
         .nest(
             "/api/notifications",
             notification_router().layer(auth_layer),

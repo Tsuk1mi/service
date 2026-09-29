@@ -162,7 +162,7 @@ async fn consume_queue(
                     &delivery.data,
                     BasicProperties::default()
                         .with_delivery_mode(2)
-                        .with_headers(headers.into()),
+                        .with_headers(headers),
                 )
                 .await;
             let _ = delivery

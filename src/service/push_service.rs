@@ -20,7 +20,15 @@ impl PushService {
     ) -> Result<(), String> {
         let key = match &self.fcm_server_key {
             Some(k) if !k.is_empty() => k,
-            _ => return Ok(()), // Нет ключа — тихо выходим
+            _ => {
+                tracing::warn!(
+                    target: "push_service",
+                    push_token_present = !token.is_empty(),
+                    notification_title = title,
+                    "FCM_SERVER_KEY is not configured; skip push delivery (no-op)"
+                );
+                return Ok(());
+            }
         };
 
         #[derive(Serialize)]

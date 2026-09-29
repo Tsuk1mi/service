@@ -1,4 +1,6 @@
-use crate::auth::jwt::{create_token_pair, decode_token_ignore_exp, verify_refresh_token, TokenType};
+use crate::auth::jwt::{
+    create_token_pair, decode_token_ignore_exp, verify_refresh_token, TokenType,
+};
 use crate::auth::sms::SmsService;
 use crate::config::Config;
 use crate::error::{AppError, AppResult};
@@ -46,14 +48,18 @@ impl AuthService {
 
     /// Отправляет код авторизации в Telegram бот
     async fn send_code_to_telegram(&self, phone: &str, code: &str) -> Result<(), String> {
-        let bot_url = self.config.telegram_bot_http_url.clone().unwrap_or_else(|| {
-            let bot_port = self
-                .config
-                .server_port
-                .checked_add(1)
-                .unwrap_or(self.config.server_port);
-            format!("http://localhost:{}/send_code", bot_port)
-        });
+        let bot_url = self
+            .config
+            .telegram_bot_http_url
+            .clone()
+            .unwrap_or_else(|| {
+                let bot_port = self
+                    .config
+                    .server_port
+                    .checked_add(1)
+                    .unwrap_or(self.config.server_port);
+                format!("http://localhost:{}/send_code", bot_port)
+            });
 
         let payload = json!({
             "phone": phone,
@@ -85,7 +91,6 @@ impl AuthService {
         }
     }
 
-
     /// Начинает процесс авторизации
     pub async fn start_auth(&self, phone: &str) -> AppResult<AuthStartResponse> {
         let normalized_phone = ValidationService::validate_phone(phone)?;
@@ -97,11 +102,7 @@ impl AuthService {
             .generate_code(&normalized_phone)
             .await
             .map_err(|e| {
-                tracing::error!(
-                    "Failed to generate OTP for {}: {:?}",
-                    normalized_phone,
-                    e
-                );
+                tracing::error!("Failed to generate OTP for {}: {:?}", normalized_phone, e);
                 e
             })?;
 
@@ -217,7 +218,11 @@ impl AuthService {
     ) -> AppResult<AuthVerifyResponse> {
         let normalized_phone = ValidationService::validate_phone(phone)?;
 
-        if !self.sms_service.verify_code(&normalized_phone, code).await? {
+        if !self
+            .sms_service
+            .verify_code(&normalized_phone, code)
+            .await?
+        {
             return Err(AppError::Auth("Неверный код подтверждения".to_string()));
         }
 
@@ -357,7 +362,8 @@ impl AuthService {
 
         let now = chrono::Utc::now().timestamp();
         let max_age_after_expiry = 30 * 60;
-        let max_total_age = (self.config.jwt_refresh_expiration_minutes * 60) + max_age_after_expiry;
+        let max_total_age =
+            (self.config.jwt_refresh_expiration_minutes * 60) + max_age_after_expiry;
         let token_age = now - claims.iat;
 
         if token_age > max_total_age {

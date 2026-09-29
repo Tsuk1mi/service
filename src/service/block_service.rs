@@ -1,14 +1,12 @@
 use crate::error::{AppError, AppResult};
 use crate::metrics;
-use crate::queue::{EventPublisher, NotificationEvent};
 use crate::models::block::{Block, BlockWithBlockerInfo, CheckBlockResponse, CreateBlockRequest};
+use crate::queue::{EventPublisher, NotificationEvent};
 use crate::repository::{
     BlockRepository, CreateNotificationData, NotificationRepository, TelegramBotRepository,
     UserPlateRepository, UserRepository,
 };
-use crate::service::{
-    telephony_service::TelephonyService, validation_service::ValidationService,
-};
+use crate::service::{telephony_service::TelephonyService, validation_service::ValidationService};
 use crate::utils::encryption::Encryption;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -278,8 +276,7 @@ impl BlockService {
                     } else if let Some(owner_user) = owner_user.as_ref() {
                         if let Some(push_token) = owner_user.push_token.clone() {
                             let title = "Ваш авто заблокирован";
-                            let body =
-                                format!("{} перекрыл {}.", blocker_name, normalized_plate);
+                            let body = format!("{} перекрыл {}.", blocker_name, normalized_plate);
                             let event = NotificationEvent {
                                 event_type: "push".into(),
                                 chat_id: None,
@@ -366,7 +363,7 @@ impl BlockService {
             .await?;
 
         result.append(&mut shared);
-        result.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        result.sort_by_key(|a| std::cmp::Reverse(a.created_at));
         result.dedup_by(|a, b| a.id == b.id);
 
         Ok(result)
@@ -414,7 +411,7 @@ impl BlockService {
         }
 
         // Сортируем по дате создания (новые сначала)
-        all_blocks.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        all_blocks.sort_by_key(|a| std::cmp::Reverse(a.created_at));
 
         Ok(all_blocks)
     }

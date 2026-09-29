@@ -78,8 +78,7 @@ impl Encryption {
 mod tests {
     use super::*;
 
-    const TEST_KEY: &str =
-        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    const TEST_KEY: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
     #[test]
     fn encrypt_decrypt_roundtrip() {

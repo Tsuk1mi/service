@@ -45,11 +45,7 @@ impl TelegramService {
             Ok(())
         } else {
             let error_text = response.text().await.unwrap_or_default();
-            tracing::warn!(
-                "Telegram API error for chat_id {}: {}",
-                chat_id,
-                error_text
-            );
+            tracing::warn!("Telegram API error for chat_id {}: {}", chat_id, error_text);
             Ok(())
         }
     }
@@ -93,11 +89,7 @@ impl TelegramService {
 
             if !response.status().is_success() {
                 let error_text = response.text().await.unwrap_or_default();
-                tracing::warn!(
-                    "Telegram API error for @{}: {}",
-                    clean_username,
-                    error_text
-                );
+                tracing::warn!("Telegram API error for @{}: {}", clean_username, error_text);
             }
         }
 

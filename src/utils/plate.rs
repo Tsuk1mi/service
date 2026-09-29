@@ -67,3 +67,28 @@ pub fn format_plate(plate: &str) -> String {
         normalized
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_strips_spaces_and_uppercases() {
+        assert_eq!(normalize_plate("а 123 бв 777"), "А123БВ777");
+        assert_eq!(normalize_plate("A123BC77"), "A123BC77");
+    }
+
+    #[test]
+    fn validate_russian_plate_shapes() {
+        assert!(validate_plate("А123БВ777"));
+        assert!(validate_plate("A123BC77"));
+        assert!(!validate_plate("123"));
+        assert!(!validate_plate("АА123БВ777"));
+    }
+
+    #[test]
+    fn format_plate_inserts_spaces() {
+        let formatted = format_plate("A123BC777");
+        assert_eq!(formatted, "A 123 BC 777");
+    }
+}

@@ -105,9 +105,14 @@ export function NotificationsPage() {
             </Card>
           ))}
           {(notificationsQuery.data ?? []).length === 0 && (
-            <Typography color="text.secondary" textAlign="center" py={4}>
-              Нет уведомлений
-            </Typography>
+            <Box textAlign="center" py={6} px={2}>
+              <Typography variant="subtitle1" gutterBottom>
+                Нет уведомлений
+              </Typography>
+              <Typography color="text.secondary" variant="body2">
+                События о блокировках и доставке появятся здесь. Потяните обновление или зайдите позже.
+              </Typography>
+            </Box>
           )}
         </Stack>
       )}

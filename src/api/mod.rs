@@ -7,6 +7,9 @@ pub mod server_info;
 pub mod user;
 pub mod user_plate;
 
+#[cfg(test)]
+pub mod test_support;
+
 pub use auth::*;
 pub use block::*;
 pub use health::*;

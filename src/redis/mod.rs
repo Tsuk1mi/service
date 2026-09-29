@@ -150,6 +150,9 @@ mod tests {
     #[test]
     fn blacklist_key_format() {
         let jti = "test-jti-uuid";
-        assert_eq!(format!("jwt:blacklist:{}", jti), "jwt:blacklist:test-jti-uuid");
+        assert_eq!(
+            format!("jwt:blacklist:{}", jti),
+            "jwt:blacklist:test-jti-uuid"
+        );
     }
 }

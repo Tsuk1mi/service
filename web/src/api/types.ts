@@ -121,6 +121,15 @@ export interface UpdateUserPlateRequest {
   departure_time?: string | null;
 }
 
+export interface IntegrationsStatus {
+  sms: boolean;
+  telegram: boolean;
+  ocr: boolean;
+  fcm: boolean;
+  redis: boolean;
+  rabbitmq: boolean;
+}
+
 export interface ServerInfoResponse {
   server_url: string;
   port: number;
@@ -130,6 +139,7 @@ export interface ServerInfoResponse {
   app_download_url?: string | null;
   web_app_url?: string | null;
   telegram_bot_username?: string | null;
+  integrations?: IntegrationsStatus | null;
 }
 
 export interface RecognizePlateResponse {

@@ -10,8 +10,7 @@ use crate::api::AppState;
 use crate::config::Config;
 use crate::error::AppResult;
 use crate::models::auth::{
-    AuthStartRequest, AuthStartResponse, AuthVerifyRequest,
-    LogoutRequest, RefreshTokenRequest,
+    AuthStartRequest, AuthStartResponse, AuthVerifyRequest, LogoutRequest, RefreshTokenRequest,
 };
 use crate::utils::validate::validate_payload;
 
@@ -137,11 +136,8 @@ pub async fn refresh_token(
     headers: HeaderMap,
     body: Option<Json<RefreshTokenRequest>>,
 ) -> AppResult<Response> {
-    let token = extract_refresh_token(
-        &headers,
-        body.as_ref().map(|b| b.token.as_str()),
-    )
-    .ok_or_else(|| crate::error::AppError::Auth("Refresh token required".to_string()))?;
+    let token = extract_refresh_token(&headers, body.as_ref().map(|b| b.token.as_str()))
+        .ok_or_else(|| crate::error::AppError::Auth("Refresh token required".to_string()))?;
 
     let response = state.auth_service.refresh_token(&token).await?;
 
@@ -170,19 +166,13 @@ pub async fn logout(
     headers: HeaderMap,
     body: Option<Json<LogoutRequest>>,
 ) -> AppResult<Response> {
-    let token = extract_refresh_token(
-        &headers,
-        body.as_ref().and_then(|b| b.token.as_deref()),
-    )
-    .ok_or_else(|| crate::error::AppError::Auth("Refresh token required".to_string()))?;
+    let token = extract_refresh_token(&headers, body.as_ref().and_then(|b| b.token.as_deref()))
+        .ok_or_else(|| crate::error::AppError::Auth("Refresh token required".to_string()))?;
 
     state.auth_service.logout(&token).await?;
 
     let mut out_headers = HeaderMap::new();
-    out_headers.insert(
-        header::SET_COOKIE,
-        clear_refresh_cookie(&state.config)?,
-    );
+    out_headers.insert(header::SET_COOKIE, clear_refresh_cookie(&state.config)?);
 
     Ok((out_headers, Json(serde_json::json!({"success": true}))).into_response())
 }

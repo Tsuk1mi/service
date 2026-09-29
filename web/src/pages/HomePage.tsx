@@ -1,4 +1,5 @@
 import {
+  Badge,
   Box,
   Card,
   CardActionArea,
@@ -18,19 +19,37 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
 
-const QUICK_ACTIONS = [
-  { path: '/profile', title: 'Профиль', subtitle: 'Данные и авто', icon: <PersonIcon /> },
-  { path: '/blocks', title: 'Мои блокировки', subtitle: 'Кого перекрыли', icon: <ListIcon /> },
-  { path: '/blocked-by', title: 'Меня перекрыл', subtitle: 'Кто блокирует', icon: <WarningIcon /> },
-  { path: '/notifications', title: 'Уведомления', subtitle: 'События и алерты', icon: <NotificationsIcon /> },
-];
-
 export function HomePage() {
   const navigate = useNavigate();
   const { data: serverInfo } = useQuery({
     queryKey: ['server-info'],
     queryFn: () => api.getServerInfo(),
   });
+  const { data: notifications } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: () => api.getNotifications(),
+    refetchInterval: 30_000,
+  });
+  const unreadCount = (notifications ?? []).filter((n) => !n.read).length;
+
+  const quickActions = [
+    { path: '/profile', title: 'Профиль', subtitle: 'Данные и авто', icon: <PersonIcon /> },
+    { path: '/blocks', title: 'Мои блокировки', subtitle: 'Кого перекрыли', icon: <ListIcon /> },
+    { path: '/blocked-by', title: 'Меня перекрыл', subtitle: 'Кто блокирует', icon: <WarningIcon /> },
+    {
+      path: '/notifications',
+      title: 'Уведомления',
+      subtitle: unreadCount > 0 ? `${unreadCount} непрочитанных` : 'События и алерты',
+      icon:
+        unreadCount > 0 ? (
+          <Badge badgeContent={unreadCount} color="error" max={99}>
+            <NotificationsIcon />
+          </Badge>
+        ) : (
+          <NotificationsIcon />
+        ),
+    },
+  ];
 
   return (
     <Box p={2} maxWidth={900} mx="auto">
@@ -80,10 +99,17 @@ export function HomePage() {
           mb: 2,
         }}
       >
-        {QUICK_ACTIONS.map((action) => (
+        {quickActions.map((action) => (
           <Card key={action.path} sx={{ height: 130 }}>
             <CardActionArea sx={{ height: '100%' }} onClick={() => navigate(action.path)}>
-              <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <CardContent
+                sx={{
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                }}
+              >
                 <Box color="primary.main">{action.icon}</Box>
                 <Box>
                   <Typography variant="subtitle1">{action.title}</Typography>
@@ -106,7 +132,7 @@ export function HomePage() {
                 <Box>
                   <Typography variant="subtitle1">О приложении</Typography>
                   <Typography variant="caption" color="text.secondary">
-                    Версия, ссылки, контакт
+                    Версия, интеграции, контакты
                   </Typography>
                 </Box>
               </Stack>

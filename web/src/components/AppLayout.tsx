@@ -1,4 +1,5 @@
 import {
+  Badge,
   BottomNavigation,
   BottomNavigationAction,
   Box,
@@ -19,19 +20,23 @@ import ListIcon from '@mui/icons-material/List';
 import WarningIcon from '@mui/icons-material/Warning';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import InfoIcon from '@mui/icons-material/Info';
+import { useQuery } from '@tanstack/react-query';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { api } from '../api/client';
 
 const NAV_ITEMS = [
-  { path: '/', label: 'Главная', shortLabel: 'Главная', icon: <HomeIcon /> },
-  { path: '/profile', label: 'Профиль', shortLabel: 'Профиль', icon: <PersonIcon /> },
-  { path: '/blocks', label: 'Мои блокировки', shortLabel: 'Блокировки', icon: <ListIcon /> },
-  { path: '/blocked-by', label: 'Меня заблокировали', shortLabel: 'Заблокировали', icon: <WarningIcon /> },
-  { path: '/notifications', label: 'Уведомления', shortLabel: 'Уведомления', icon: <NotificationsIcon /> },
+  { path: '/', label: 'Главная', shortLabel: 'Главная', icon: <HomeIcon />, key: 'home' },
+  { path: '/profile', label: 'Профиль', shortLabel: 'Профиль', icon: <PersonIcon />, key: 'profile' },
+  { path: '/blocks', label: 'Мои блокировки', shortLabel: 'Блокировки', icon: <ListIcon />, key: 'blocks' },
+  { path: '/blocked-by', label: 'Меня заблокировали', shortLabel: 'Заблокировали', icon: <WarningIcon />, key: 'blocked-by' },
+  { path: '/notifications', label: 'Уведомления', shortLabel: 'Уведомления', icon: <NotificationsIcon />, key: 'notifications' },
 ];
 
 const SIDEBAR_EXTRA = [
   { path: '/about', label: 'О приложении', icon: <InfoIcon /> },
 ];
+
+const POLL_INTERVAL = 30_000;
 
 export function AppLayout() {
   const theme = useTheme();
@@ -39,9 +44,27 @@ export function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const notificationsQuery = useQuery({
+    queryKey: ['notifications'],
+    queryFn: () => api.getNotifications(),
+    refetchInterval: POLL_INTERVAL,
+  });
+  const unreadCount = (notificationsQuery.data ?? []).filter((n) => !n.read).length;
+
   const currentIndex = NAV_ITEMS.findIndex((item) =>
     item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path),
   );
+
+  const navIcon = (item: (typeof NAV_ITEMS)[number]) => {
+    if (item.key === 'notifications' && unreadCount > 0) {
+      return (
+        <Badge badgeContent={unreadCount} color="error" max={99}>
+          {item.icon}
+        </Badge>
+      );
+    }
+    return item.icon;
+  };
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -70,7 +93,15 @@ export function AppLayout() {
                 }
                 onClick={() => navigate(item.path)}
               >
-                <ListItemIcon>{item.icon}</ListItemIcon>
+                <ListItemIcon>
+                  {'key' in item && item.key === 'notifications' && unreadCount > 0 ? (
+                    <Badge badgeContent={unreadCount} color="error" max={99}>
+                      {item.icon}
+                    </Badge>
+                  ) : (
+                    item.icon
+                  )}
+                </ListItemIcon>
                 <ListItemText primary={item.label} />
               </ListItemButton>
             ))}
@@ -82,9 +113,20 @@ export function AppLayout() {
         {isMobile && (
           <AppBar position="sticky" color="default" elevation={1}>
             <Toolbar>
-              <Typography variant="h6" color="primary" fontWeight={700}>
+              <Typography variant="h6" color="primary" fontWeight={700} sx={{ flex: 1 }}>
                 Rimskiy
               </Typography>
+              {unreadCount > 0 && (
+                <Badge
+                  badgeContent={unreadCount}
+                  color="error"
+                  max={99}
+                  sx={{ cursor: 'pointer' }}
+                  onClick={() => navigate('/notifications')}
+                >
+                  <NotificationsIcon color="action" />
+                </Badge>
+              )}
             </Toolbar>
           </AppBar>
         )}
@@ -104,7 +146,7 @@ export function AppLayout() {
               <BottomNavigationAction
                 key={item.path}
                 label={item.shortLabel}
-                icon={item.icon}
+                icon={navIcon(item)}
               />
             ))}
           </BottomNavigation>
