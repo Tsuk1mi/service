@@ -114,9 +114,8 @@ async fn get_server_info(
 mod tests {
     use super::*;
     use crate::api::test_support::test_app_state;
-    use axum::body::Body;
+    use axum::body::{to_bytes, Body};
     use axum::http::{Request, StatusCode};
-    use http_body_util::BodyExt;
     use tower::ServiceExt;
 
     #[test]
@@ -146,7 +145,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
-        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        let bytes = to_bytes(response.into_body(), 1024 * 64).await.unwrap();
         let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(json["port"], 8080);
         assert!(json["integrations"].is_object());

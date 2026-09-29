@@ -58,7 +58,6 @@ utoipa-swagger-ui = { version = "6.0", features = ["axum"] }
 
 [dev-dependencies]
 tokio-test = "0.4"
-http-body-util = "0.1"
 
 [[bin]]
 name = "rimskiy_service"
