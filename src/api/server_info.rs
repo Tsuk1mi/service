@@ -113,6 +113,11 @@ async fn get_server_info(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::test_support::test_app_state;
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
 
     #[test]
     fn integrations_flags_shape() {
@@ -123,5 +128,30 @@ mod tests {
         assert_eq!(v["fcm"], false);
         assert_eq!(v["redis"], true);
         assert_eq!(v["rabbitmq"], false);
+    }
+
+    #[tokio::test]
+    async fn server_info_returns_integrations_without_db() {
+        let app = server_info_router().with_state(test_app_state());
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/server-info")
+                    .header("host", "example.test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["port"], 8080);
+        assert!(json["integrations"].is_object());
+        assert_eq!(json["integrations"]["redis"], false);
+        assert_eq!(json["integrations"]["sms"], false);
+        assert!(json["server_url"].as_str().unwrap().contains("example.test"));
     }
 }

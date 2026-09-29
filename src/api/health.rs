@@ -49,3 +49,31 @@ async fn health_ready(State(state): State<AppState>) -> Result<Json<serde_json::
 
     Ok(Json(json!({ "status": "ready", "checks": checks })))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::test_support::test_app_state;
+    use axum::body::Body;
+    use axum::http::Request;
+    use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn health_live_returns_ok_without_db() {
+        let app = Router::new()
+            .nest("/health", health_router())
+            .with_state(test_app_state());
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/health/live")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+}
