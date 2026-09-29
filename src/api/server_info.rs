@@ -151,6 +151,9 @@ mod tests {
         assert!(json["integrations"].is_object());
         assert_eq!(json["integrations"]["redis"], false);
         assert_eq!(json["integrations"]["sms"], false);
-        assert!(json["server_url"].as_str().unwrap().contains("example.test"));
+        assert!(json["server_url"]
+            .as_str()
+            .unwrap()
+            .contains("example.test"));
     }
 }

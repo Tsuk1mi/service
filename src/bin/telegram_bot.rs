@@ -1,5 +1,11 @@
 use anyhow::Context;
-use axum::{extract::State, http::{HeaderMap, StatusCode}, response::Json, routing::post, Router};
+use axum::{
+    extract::State,
+    http::{HeaderMap, StatusCode},
+    response::Json,
+    routing::post,
+    Router,
+};
 use rimskiy_service::auth::sms::SmsService;
 use rimskiy_service::config::Config;
 use rimskiy_service::db::pool::create_pool;
@@ -53,7 +59,6 @@ struct BotState {
     telegram_bot_repository: Arc<PostgresTelegramBotRepository>,
     user_repository: Arc<PostgresUserRepository>,
 }
-
 
 fn load_bot_config() -> anyhow::Result<BotConfig> {
     let sms_code_expiration_minutes = std::env::var("SMS_CODE_EXPIRATION_MINUTES")

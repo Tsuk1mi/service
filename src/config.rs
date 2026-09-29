@@ -54,7 +54,8 @@ pub struct Config {
 
 impl Config {
     pub fn from_env() -> Result<Self> {
-        let app_env = AppEnv::from_str(&env::var("APP_ENV").unwrap_or_else(|_| "development".into()));
+        let app_env =
+            AppEnv::from_str(&env::var("APP_ENV").unwrap_or_else(|_| "development".into()));
 
         let database_url = env::var("DATABASE_URL").context("DATABASE_URL is required")?;
         let redis_url = env::var("REDIS_URL").ok().filter(|s| !s.is_empty());
@@ -136,10 +137,13 @@ impl Config {
             .parse()
             .context("OTP_VERIFY_MAX_ATTEMPTS must be a valid number")?;
 
-        let internal_api_token = env::var("INTERNAL_API_TOKEN").ok().filter(|s| !s.is_empty());
+        let internal_api_token = env::var("INTERNAL_API_TOKEN")
+            .ok()
+            .filter(|s| !s.is_empty());
         let metrics_auth_user = env::var("METRICS_AUTH_USER").ok().filter(|s| !s.is_empty());
-        let metrics_auth_password =
-            env::var("METRICS_AUTH_PASSWORD").ok().filter(|s| !s.is_empty());
+        let metrics_auth_password = env::var("METRICS_AUTH_PASSWORD")
+            .ok()
+            .filter(|s| !s.is_empty());
 
         Ok(Config {
             app_env,

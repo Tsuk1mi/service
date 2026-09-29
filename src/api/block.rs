@@ -173,12 +173,7 @@ pub async fn delete_block(
 
     state
         .block_service
-        .delete_block(
-            block_id,
-            blocker_id,
-            &state.block_repository,
-            &notify_ctx,
-        )
+        .delete_block(block_id, blocker_id, &state.block_repository, &notify_ctx)
         .await?;
 
     Ok(Json(

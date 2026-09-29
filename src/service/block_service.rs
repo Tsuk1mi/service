@@ -1,14 +1,12 @@
 use crate::error::{AppError, AppResult};
 use crate::metrics;
-use crate::queue::{EventPublisher, NotificationEvent};
 use crate::models::block::{Block, BlockWithBlockerInfo, CheckBlockResponse, CreateBlockRequest};
+use crate::queue::{EventPublisher, NotificationEvent};
 use crate::repository::{
     BlockRepository, CreateNotificationData, NotificationRepository, TelegramBotRepository,
     UserPlateRepository, UserRepository,
 };
-use crate::service::{
-    telephony_service::TelephonyService, validation_service::ValidationService,
-};
+use crate::service::{telephony_service::TelephonyService, validation_service::ValidationService};
 use crate::utils::encryption::Encryption;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -278,8 +276,7 @@ impl BlockService {
                     } else if let Some(owner_user) = owner_user.as_ref() {
                         if let Some(push_token) = owner_user.push_token.clone() {
                             let title = "Ваш авто заблокирован";
-                            let body =
-                                format!("{} перекрыл {}.", blocker_name, normalized_plate);
+                            let body = format!("{} перекрыл {}.", blocker_name, normalized_plate);
                             let event = NotificationEvent {
                                 event_type: "push".into(),
                                 chat_id: None,

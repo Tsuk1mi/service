@@ -1,10 +1,4 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::Json,
-    routing::get,
-    Router,
-};
+use axum::{extract::State, http::StatusCode, response::Json, routing::get, Router};
 use serde_json::json;
 
 use crate::api::AppState;
@@ -19,7 +13,9 @@ async fn health_live() -> &'static str {
     "OK"
 }
 
-async fn health_ready(State(state): State<AppState>) -> Result<Json<serde_json::Value>, StatusCode> {
+async fn health_ready(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
     let mut checks = json!({
         "database": "unknown",
         "redis": "not_configured"

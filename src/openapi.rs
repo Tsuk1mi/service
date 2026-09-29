@@ -2,8 +2,8 @@ use utoipa::OpenApi;
 
 use crate::models::{
     auth::{
-        AuthStartRequest, AuthStartResponse, AuthVerifyRequest, AuthVerifyResponse,
-        LogoutRequest, RefreshTokenRequest, RefreshTokenResponse,
+        AuthStartRequest, AuthStartResponse, AuthVerifyRequest, AuthVerifyResponse, LogoutRequest,
+        RefreshTokenRequest, RefreshTokenResponse,
     },
     block::{Block, BlockWithBlockerInfo, CheckBlockResponse, CreateBlockRequest},
     notification::NotificationResponse,

@@ -26,8 +26,7 @@ pub fn test_config() -> Config {
         jwt_expiration_minutes: 60,
         jwt_access_expiration_minutes: 15,
         jwt_refresh_expiration_minutes: 10080,
-        encryption_key: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-            .into(),
+        encryption_key: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".into(),
         server_host: "0.0.0.0".into(),
         server_port: 8080,
         migrations_path: "./migrations".into(),
@@ -51,8 +50,8 @@ pub fn test_config() -> Config {
 
 pub fn test_app_state() -> AppState {
     let config = test_config();
-    let pool = sqlx::PgPool::connect_lazy(&config.database_url)
-        .expect("lazy postgres pool for tests");
+    let pool =
+        sqlx::PgPool::connect_lazy(&config.database_url).expect("lazy postgres pool for tests");
     let db_pool: DbPool = Arc::new(pool);
     let encryption = Encryption::new(&config.encryption_key).expect("test encryption key");
     let event_publisher = Arc::new(NoopPublisher);

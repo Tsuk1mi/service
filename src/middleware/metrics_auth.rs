@@ -27,7 +27,11 @@ pub async fn metrics_auth_middleware(
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Basic "))
-        .and_then(|encoded| base64::engine::general_purpose::STANDARD.decode(encoded).ok())
+        .and_then(|encoded| {
+            base64::engine::general_purpose::STANDARD
+                .decode(encoded)
+                .ok()
+        })
         .and_then(|decoded| String::from_utf8(decoded).ok())
         .map(|credentials| credentials == format!("{}:{}", user, pass))
         .unwrap_or(false);
