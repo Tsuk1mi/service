@@ -38,10 +38,12 @@ export function setStoredToken(token: string): void {
 }
 
 export function setStoredRefreshToken(_token: string): void {
+  void _token;
   // refresh token хранится в httpOnly cookie на сервере
 }
 
 export function setStoredTokens(access: string, _refresh: string): void {
+  void _refresh;
   accessToken = access;
   persistToken(access);
 }
