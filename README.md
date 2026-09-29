@@ -76,10 +76,12 @@ npm run dev
 - `SERVER_HOST` / `SERVER_PORT` — адрес API (по умолчанию `0.0.0.0:8080`)
 - `WEB_APP_URL` — URL веб-приложения (для `/server-info` и Telegram `/apk`)
 - `TELEGRAM_BOT_TOKEN` / `TELEGRAM_BOT_USERNAME` — Telegram-бот
-- `SMS_API_URL` / `SMS_API_KEY` — SMS-провайдер
+- `SMS_API_URL` / `SMS_API_KEY` — SMS-провайдер (без них коды только через Telegram)
+- `OCR_API_URL` — распознавание номера с фото (иначе ручной ввод)
+- `FCM_SERVER_KEY` — push через notification-worker
 - `TELEPHONY_API_URL` / `TELEPHONY_API_KEY` — звонки владельцам
 
-Полный список: [`.env.example`](.env.example)
+Полный список: [`.env.example`](.env.example). Для Docker Compose: [`.env.docker.example`](.env.docker.example).
 
 ## Генерация ключа шифрования
 
@@ -153,9 +155,9 @@ Runbooks: [`docs/runbooks/`](docs/runbooks/)
 
 ## Функции веб-клиента
 
-- Авторизация по SMS / Telegram
+- Авторизация по SMS / Telegram (Telegram-only, если SMS не настроен)
 - Профиль и управление автомобилями
-- Создание блокировок (ручной ввод + OCR фото)
+- Создание блокировок (ручной ввод + OCR фото при наличии `OCR_API_URL`)
 - Список «кто меня перекрыл» с контактами
-- In-app уведомления (polling)
+- In-app уведомления (polling) с badge непрочитанных
 - Предупреждение владельца (звонок через backend)
