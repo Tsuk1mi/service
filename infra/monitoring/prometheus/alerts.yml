@@ -16,3 +16,12 @@ groups:
           severity: warning
         annotations:
           summary: Notification queue depth high
+
+      - alert: NotificationsDlqNotEmpty
+        expr: rabbitmq_queue_messages{queue="notifications.dlq"} > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Notifications DLQ has messages
+          description: Queue notifications.dlq depth is {{ $value }}. Check Telegram/FCM/SMS delivery and requeue after fix.
